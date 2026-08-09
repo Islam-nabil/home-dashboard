@@ -1,0 +1,63 @@
+name: Daily price + new-product scan
+
+# Runs once a day for free, entirely inside GitHub's infrastructure — this
+# is what makes the dashboard "always updated" without needing a paid
+# PythonAnywhere plan (its free tier dropped scheduled tasks for new
+# accounts in Jan 2026, and couldn't run a real browser anyway — see
+# scripts/run_scan.py's module docstring).
+#
+# Two independent jobs:
+#   1. static-price-check - calls the site's own existing price-check
+#      endpoint (works for 2B and anything else whose price is in the raw
+#      HTML; PythonAnywhere itself does the fetching, no browser needed).
+#   2. rendered-scan - runs in THIS runner (which has a full VM), installs
+#      Playwright, and handles B.TECH (needs real JS rendering) plus new-
+#      product discovery, then reports results back to the live site.
+#
+# One-time setup this repo needs (see README "Always-updated scanning"):
+#   Settings -> Secrets and variables -> Actions -> New repository secret
+#     DASHBOARD_BASE_URL   e.g. https://islahmed.pythonanywhere.com
+#     BASIC_AUTH_USERNAME  same value as on PythonAnywhere's .env
+#     BASIC_AUTH_PASSWORD  same value as on PythonAnywhere's .env
+
+on:
+  schedule:
+    # 03:00 UTC = 05:00 Cairo time (EEST, UTC+2) - quiet hours, before anyone's up.
+    - cron: '0 3 * * *'
+  workflow_dispatch: {}  # lets you trigger a run manually from the Actions tab
+
+jobs:
+  static-price-check:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Trigger the site's own price check (2B + anything else static)
+        env:
+          DASHBOARD_BASE_URL: ${{ secrets.DASHBOARD_BASE_URL }}
+          BASIC_AUTH_USERNAME: ${{ secrets.BASIC_AUTH_USERNAME }}
+          BASIC_AUTH_PASSWORD: ${{ secrets.BASIC_AUTH_PASSWORD }}
+        run: |
+          curl -sS -u "$BASIC_AUTH_USERNAME:$BASIC_AUTH_PASSWORD" \
+            -X POST "$DASHBOARD_BASE_URL/api/price-check/run" \
+            -H "Content-Type: application/json" -d '{}' \
+            --fail-with-body
+
+  rendered-scan:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+
+      - name: Install dependencies
+        run: |
+          pip install requests beautifulsoup4 lxml playwright
+          playwright install --with-deps chromium
+
+      - name: Run the JS-rendered price + discovery scan
+        env:
+          DASHBOARD_BASE_URL: ${{ secrets.DASHBOARD_BASE_URL }}
+          BASIC_AUTH_USERNAME: ${{ secrets.BASIC_AUTH_USERNAME }}
+          BASIC_AUTH_PASSWORD: ${{ secrets.BASIC_AUTH_PASSWORD }}
+        run: python scripts/run_scan.py

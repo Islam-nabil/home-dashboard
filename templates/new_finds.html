@@ -1,0 +1,76 @@
+{% extends "base.html" %}
+{% block title %}New Finds — Home Setup Dashboard{% endblock %}
+{% block content %}
+
+<div class="section-head">
+  <h1 style="font-size:20px;">✨ New Finds</h1>
+  <span class="count">{{ candidates|length }} waiting for review</span>
+</div>
+<p class="muted" style="font-size:12.5px; max-width:640px;">
+  Products the daily scan spotted on retailer sites that aren't in your comparisons yet.
+  Nothing here is added automatically — approve the ones you want, dismiss the rest.
+  See Settings for when the scan last ran.
+</p>
+
+{% if candidates %}
+<div class="card-grid" style="margin-top:16px;" id="finds-grid">
+  {% for c in candidates %}
+  <div class="card" id="find-{{ c.id }}">
+    <div style="display:flex; gap:12px;">
+      {% if c.image_url %}
+      <img src="{{ c.image_url }}" class="thumb-lg" loading="lazy" onerror="this.style.display='none'">
+      {% else %}
+      <div class="thumb-lg thumb thumb-placeholder">{{ c.category_icon }}</div>
+      {% endif %}
+      <div style="flex:1; min-width:0;">
+        <div class="muted" style="font-size:11px;">{{ c.category_name }} · {{ c.retailer_name }}</div>
+        <div class="candidate-name">{{ c.full_name }}</div>
+        <div class="price-row">
+          <span class="current">{{ '{:,.0f} EGP'.format(c.price_egp) if c.price_egp else 'Price not found — you can add it after approving' }}</span>
+        </div>
+        <a href="{{ c.url }}" target="_blank" rel="noopener" class="muted" style="font-size:11px;">View on site →</a>
+      </div>
+    </div>
+    <div style="display:flex; gap:8px; margin-top:14px;">
+      <button class="btn-primary btn-sm approve-btn" data-id="{{ c.id }}" style="flex:1;">Approve — add to comparisons</button>
+      <button class="btn-secondary btn-sm dismiss-btn" data-id="{{ c.id }}">Dismiss</button>
+    </div>
+  </div>
+  {% endfor %}
+</div>
+{% else %}
+<div class="empty-state" style="margin-top:16px;">
+  Nothing waiting right now. The daily scan checks B.TECH's category pages for products you
+  don't already track — anything it finds shows up here first for you to confirm.
+</div>
+{% endif %}
+
+{% endblock %}
+{% block scripts %}
+<script>
+document.querySelectorAll('.approve-btn').forEach(btn => {
+  btn.addEventListener('click', async function () {
+    btn.disabled = true; btn.textContent = 'Adding...';
+    try {
+      await apiFetch(`/api/candidates/${btn.dataset.id}/approve`, { method: 'POST' });
+      document.getElementById(`find-${btn.dataset.id}`).remove();
+    } catch (e) {
+      btn.disabled = false; btn.textContent = 'Approve — add to comparisons';
+      alert('Failed: ' + e.message);
+    }
+  });
+});
+document.querySelectorAll('.dismiss-btn').forEach(btn => {
+  btn.addEventListener('click', async function () {
+    btn.disabled = true;
+    try {
+      await apiFetch(`/api/candidates/${btn.dataset.id}/dismiss`, { method: 'POST' });
+      document.getElementById(`find-${btn.dataset.id}`).remove();
+    } catch (e) {
+      btn.disabled = false;
+      alert('Failed: ' + e.message);
+    }
+  });
+});
+</script>
+{% endblock %}

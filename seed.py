@@ -90,7 +90,10 @@ CATEGORIES = [
 
 RETAILERS = [
     dict(key="btech", name="B.TECH", base_url="https://btech.com", provider_key="btech",
-         credibility_score=88, notes="Major Egyptian electronics chain; JSON-LD product data on most pages."),
+         credibility_score=88, render_mode="js", allow_category_scan=True,
+         notes=("Major Egyptian electronics chain. Verified 2026-08-09: price only appears after JS runs "
+                "(needs the daily GitHub Actions scan, not PythonAnywhere) but robots.txt allows crawling "
+                "both product and category pages -> also the one retailer 'New Finds' discovery scans.")),
     dict(key="jumia_eg", name="Jumia Egypt", base_url="https://www.jumia.com.eg", provider_key="generic_html",
          credibility_score=75, notes="Large marketplace; third-party sellers vary in reliability."),
     dict(key="zanussi_eg", name="Zanussi Egypt (official)", base_url="https://www.zanussi.com.eg", provider_key="generic_html",
@@ -101,7 +104,12 @@ RETAILERS = [
          credibility_score=78, notes="JS-heavy SPA; automated extraction frequently fails."),
     dict(key="carrefour_eg", name="Carrefour Egypt", base_url="https://www.carrefouregypt.com", provider_key="carrefour_eg",
          credibility_score=80, notes=""),
-    dict(key="twob", name="2B Egypt", base_url="https://2b.com.eg", provider_key="twob", credibility_score=78, notes=""),
+    dict(key="twob", name="2B Egypt", base_url="https://2b.com.eg", provider_key="twob", credibility_score=78,
+         render_mode="static",
+         notes=("Verified 2026-08-09: price ships in the raw HTML, plain fetch works fine for products you "
+                "track. Category/listing pages are deliberately NEVER scanned for new products - 2B's "
+                "robots.txt explicitly disallows crawling them and separately names AI bots as disallowed "
+                "site-wide. allow_category_scan stays off on principle, not because it doesn't work.")),
     dict(key="raya", name="Raya Shop", base_url="https://www.rayashop.com", provider_key="raya", credibility_score=76, notes=""),
     dict(key="radioshack_eg", name="RadioShack Egypt", base_url="https://www.radioshack.com.eg", provider_key="generic_html",
          credibility_score=74, notes="Established Egyptian electronics chain."),
@@ -759,18 +767,22 @@ PRODUCTS = {
 
 
 def seed():
-    existing = db.query_all("SELECT id FROM categories")
-    if existing:
-        print("Seed skipped: categories already exist.")
-        return
-
     print("Seeding retailers...")
     retailer_ids = {}
     for r in RETAILERS:
         retailer_ids[r["key"]] = repo.get_or_create_retailer(
             r["key"], name=r["name"], base_url=r["base_url"], provider_key=r["provider_key"],
             credibility_score=r["credibility_score"], notes=r["notes"],
+            render_mode=r.get("render_mode"), allow_category_scan=r.get("allow_category_scan"),
         )["id"]
+
+    existing = db.query_all("SELECT id FROM categories")
+    if existing:
+        print("Categories/products already seeded — retailer render_mode/allow_category_scan flags "
+              "were still refreshed above. Re-run scripts/seed_discovery_sources.py to (re)seed "
+              "discovery_sources if needed.")
+        seed_discovery_sources(retailer_ids)
+        return
 
     print("Seeding categories...")
     category_ids = {}
@@ -832,7 +844,53 @@ def seed():
     for row in all_products:
         price_check._evaluate_and_alert(row["id"])  # noqa: SLF001 - intentional reuse
 
+    seed_discovery_sources(retailer_ids, category_ids)
+
     print("Seed complete.")
+
+
+# Category listing pages the daily "New Finds" scan actually looks at.
+# Every URL here was live-verified (2026-08-09, via a real rendered browser
+# session — see discovery.py's module docstring for why a plain fetch can't
+# do this) to be a real B.TECH category page containing product-detail
+# links, not guessed from a URL pattern. Only 5 of the app's 8 categories
+# are covered — water_heater/microwave/air_fryer weren't findable in
+# B.TECH's nav in the time spent looking; add them here once someone finds
+# and verifies the real category URL, same way these five were found.
+DISCOVERY_SOURCES = [
+    dict(category_key="refrigerator", retailer_key="btech",
+         listing_url="https://btech.com/en/c/large-home-appliances/refrigerators"),
+    dict(category_key="cooker", retailer_key="btech",
+         listing_url="https://btech.com/en/c/large-home-appliances/cookers"),
+    dict(category_key="air_conditioner", retailer_key="btech",
+         listing_url="https://btech.com/en/c/large-home-appliances/air-conditioners/split-system"),
+    dict(category_key="washing_machine", retailer_key="btech",
+         listing_url="https://btech.com/en/c/large-home-appliances/washing-machines-dryers/front-load-washing-machines"),
+    dict(category_key="tv", retailer_key="btech",
+         listing_url="https://btech.com/en/c/tvs-projectors"),
+]
+
+
+def seed_discovery_sources(retailer_ids=None, category_ids=None):
+    if retailer_ids is None:
+        retailer_ids = {r["key"]: r["id"] for r in repo.list_retailers()}
+    if category_ids is None:
+        category_ids = {c["key"]: c["id"] for c in repo.list_categories()}
+    for src in DISCOVERY_SOURCES:
+        cat_id = category_ids.get(src["category_key"])
+        ret_id = retailer_ids.get(src["retailer_key"])
+        if not cat_id or not ret_id:
+            continue
+        existing = db.query_one(
+            "SELECT id FROM discovery_sources WHERE category_id=? AND retailer_id=?", (cat_id, ret_id)
+        )
+        if existing:
+            continue
+        db.insert("discovery_sources", {
+            "category_id": cat_id, "retailer_id": ret_id, "listing_url": src["listing_url"],
+            "is_active": 1, "last_scanned_at": "", "created_at": db.now_iso(),
+        })
+    print(f"Discovery sources: {len(DISCOVERY_SOURCES)} configured (B.TECH only - see discovery.py).")
 
 
 if __name__ == "__main__":

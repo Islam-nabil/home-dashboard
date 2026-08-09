@@ -34,11 +34,34 @@ def guess_retailer_key(url):
     return "other"
 
 
-def extract_from_url(url):
+def _pick_provider_for_retailer_key(retailer_key):
+    """Look up the guessed retailer's render_mode in the DB (falls back to
+    GenericHtmlProvider if the retailer isn't in the DB yet, or the DB
+    isn't reachable — e.g. a unit test calling this with no app context)."""
+    from providers.rendered_html import RenderedHtmlProvider
+    try:
+        import repository as repo
+        retailer = next((r for r in repo.list_retailers() if r["key"] == retailer_key), None)
+    except Exception:  # noqa: BLE001
+        retailer = None
+    if retailer and retailer.get("render_mode") == "js":
+        return RenderedHtmlProvider()
+    return GenericHtmlProvider()
+
+
+def extract_from_url(url, provider=None):
     """Returns dict: {extracted: bool, retailer_key, brand_guess, model_guess,
-    full_name, price, availability, image_url, reason_if_failed}."""
-    provider = GenericHtmlProvider()
+    full_name, price, availability, image_url, reason_if_failed}.
+
+    `provider` lets a caller that already knows this URL needs JS rendering
+    (discovery.py, for a retailer with render_mode='js') pass a
+    RenderedHtmlProvider instead. If omitted, we look up the guessed
+    retailer's render_mode ourselves — so pasting a B.TECH link into the
+    wishlist "auto-fill" box picks the right fetch strategy automatically,
+    without the caller needing to know B.TECH needs a browser."""
     retailer_key = guess_retailer_key(url)
+    if provider is None:
+        provider = _pick_provider_for_retailer_key(retailer_key)
     try:
         result = provider.fetch(url)
     except (ProviderError, ProviderUnsupported) as e:

@@ -2,26 +2,50 @@
 Per-retailer adapters (spec section 20 example: BTechProvider,
 AmazonEgyptProvider, CarrefourProvider, NoonProvider, ManualProvider).
 
-Each subclasses GenericHtmlProvider — same tier-3 "structured page
-retrieval" strategy — but is kept as its own class so:
+Each subclasses either GenericHtmlProvider (plain HTTP fetch — price is in
+the raw HTML) or RenderedHtmlProvider (needs a real browser to execute
+JavaScript first — price is injected client-side). Kept as separate classes
+so:
   (a) one retailer changing its markup only requires touching one class,
-  (b) each can be independently disabled (fall back to manual) if it turns
-      out to require JS rendering or blocks simple requests,
+  (b) each can be independently switched between static/rendered/manual if
+      real-world testing shows it needs a different strategy,
   (c) retailer-specific selector overrides can be added here later without
       touching the shared extraction logic in generic_html.py.
 
-None of these were live-verified against the real sites during this build
-(see generic_html.py's module docstring for why) — treat SUPPORTED=True as
-"worth trying," not "confirmed working." price_check.py always catches
-failures per-listing and never lets one retailer's breakage stop the run.
+VERIFIED vs UNVERIFIED (2026-08-09): BTechProvider and TwoBProvider were
+live-tested against real product pages (via a real browser session, not
+this app's own sandboxed fetch, which has no outbound internet — see
+generic_html.py's module docstring) and their render_mode below matches
+what was actually observed:
+  - 2B (TwoBProvider): price ships in the raw HTML (`product:price:amount`
+    meta tag) -> GenericHtmlProvider, render_mode='static'. Confirmed
+    working. Its category/listing pages are NOT scanned for new products —
+    2B's robots.txt explicitly disallows crawling them (and separately
+    names "anthropic-ai" as disallowed site-wide) — see discovery.py.
+  - B.TECH (BTechProvider): price is injected by JavaScript after load;
+    the raw HTML the server sends has no price in it at all. Rendering the
+    page first exposes a full schema.org Product/Offer JSON-LD block ->
+    RenderedHtmlProvider, render_mode='js'. B.TECH's robots.txt places no
+    restriction on product or category paths, so its listing pages ARE
+    eligible for new-product discovery (see discovery_sources seed data).
+
+Everyone else below (Amazon/Carrefour/Noon/Raya/official brand sites)
+remains untested — treat SUPPORTED=True as "worth trying," not "confirmed
+working." price_check.py always catches failures per-listing and never
+lets one retailer's breakage stop the run.
 """
 from .generic_html import GenericHtmlProvider
+from .rendered_html import RenderedHtmlProvider
 
 
-class BTechProvider(GenericHtmlProvider):
+class BTechProvider(RenderedHtmlProvider):
     key = "btech"
     display_name = "B.TECH"
-    notes = "btech.com product pages generally include JSON-LD product data."
+    notes = (
+        "btech.com is a client-rendered storefront - price only appears after JavaScript "
+        "runs (verified 2026-08-09). Needs a real browser (Playwright); only runs in the "
+        "GitHub Actions daily scan, not on PythonAnywhere's free tier."
+    )
 
 
 class AmazonEgyptProvider(GenericHtmlProvider):
@@ -44,6 +68,11 @@ class NoonEgyptProvider(GenericHtmlProvider):
 class TwoBProvider(GenericHtmlProvider):
     key = "twob"
     display_name = "2B Egypt"
+    notes = (
+        "2B product pages ship price in the raw HTML (verified 2026-08-09, "
+        "product:price:amount meta tag) -> plain fetch works. Its category/listing "
+        "pages are deliberately never crawled - 2B's robots.txt disallows it."
+    )
 
 
 class RayaShopProvider(GenericHtmlProvider):

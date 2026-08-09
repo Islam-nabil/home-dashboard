@@ -69,12 +69,25 @@ def check_single_listing(listing_row):
         _log(listing_id, "failed", "Provider returned no price")
         return {"listing_id": listing_id, "status": "failed", "detail": "Provider returned no price"}
 
-    repo.add_price_observation(
-        listing_id, price, availability=result.get("availability", "unknown"),
-        source=provider.key, is_verified=1, observed_at=result.get("retrievedAt"),
-    )
+    record_price_result(listing_id, price, result.get("availability", "unknown"), source=provider.key)
     _log(listing_id, "ok", f"{price} EGP, {result.get('availability')}")
     return {"listing_id": listing_id, "status": "ok", "price": price}
+
+
+def record_price_result(listing_id, price, availability, source="manual"):
+    """Store one fetched price observation. Split out from check_single_listing
+    so callers that already fetched a price elsewhere (e.g. the daily GitHub
+    Actions scan, which runs Playwright outside this app entirely and POSTs
+    its results to /api/scan/ingest) go through the exact same storage path —
+    never a second, slightly-different code path for 'externally fetched'
+    prices."""
+    repo.add_price_observation(
+        listing_id, price, availability=availability, source=source, is_verified=1, observed_at=db.now_iso(),
+    )
+
+
+def evaluate_and_alert(product_id, previous_availability=None):
+    return _evaluate_and_alert(product_id, previous_availability=previous_availability)
 
 
 def _evaluate_and_alert(product_id, previous_availability=None):

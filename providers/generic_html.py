@@ -107,18 +107,27 @@ def _extract_jsonld_price(soup):
             if not isinstance(item, dict):
                 continue
             if item.get("@type") not in ("Product", "Offer"):
-                # Some sites nest Offer under Product
-                offers = item.get("offers")
-                if isinstance(offers, dict):
-                    price = offers.get("price") or offers.get("priceSpecification", {}).get("price")
-                    avail = offers.get("availability", "")
-                    if price:
-                        return _to_float_price(price), _normalize_availability(avail), item.get("name")
                 continue
+
+            # A bare Offer sometimes carries price directly; a Product
+            # almost always nests it under "offers" instead (verified
+            # 2026-08-09 against a real btech.com Product/Offer block —
+            # see tests/test_rendered_html.py). Try both, direct field
+            # first, so neither shape silently returns nothing.
             price = item.get("price")
             avail = item.get("availability", "")
+            name = item.get("name")
+
+            if not price:
+                offers = item.get("offers")
+                if isinstance(offers, list) and offers:
+                    offers = offers[0]
+                if isinstance(offers, dict):
+                    price = offers.get("price") or offers.get("priceSpecification", {}).get("price")
+                    avail = offers.get("availability", avail)
+
             if price:
-                return _to_float_price(price), _normalize_availability(avail), item.get("name")
+                return _to_float_price(price), _normalize_availability(avail), name
     return None, "unknown", None
 
 

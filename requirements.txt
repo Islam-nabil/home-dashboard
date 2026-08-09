@@ -20,3 +20,13 @@ gunicorn>=21.2
 requests>=2.31
 beautifulsoup4>=4.12
 lxml>=5.0
+
+# Deliberately NOT listed here: `playwright`. It's needed by
+# providers/rendered_html.py (JS-rendered retailers like B.TECH) and
+# scripts/run_scan.py, but only PythonAnywhere free tier can't run a real
+# browser (tiny CPU-second budget, ~300MB binary) — see README section 8.1.
+# The GitHub Actions daily-scan workflow installs it separately
+# (`pip install playwright && playwright install chromium`) in its own
+# disposable VM, so `pip install -r requirements.txt` here never tries to
+# pull down a browser on a host that can't use it. Install it yourself
+# (same two commands) only if you want to run scripts/run_scan.py locally.

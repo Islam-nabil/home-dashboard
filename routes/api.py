@@ -359,6 +359,101 @@ def api_price_check_log():
     return jsonify(rows)
 
 
+# ============================= Daily scan (GitHub Actions) =====================================
+# These two endpoints are how the "always updated" daily scan works: the
+# GitHub Actions job (scripts/run_scan.py) can't touch this app's SQLite
+# file directly (it runs in a completely separate VM), so it fetches what
+# to check via GET /scan/targets, does the actual Playwright-based
+# fetching itself, then POSTs results here. Protected by the same Basic
+# Auth as every other page/route on this app (see app.py) when
+# BASIC_AUTH_USERNAME/PASSWORD are set — no separate secret to manage.
+# See README "Always-updated scanning" and discovery.py's module docstring
+# for what this does and (just as importantly) does not do.
+
+@api_bp.get("/scan/targets")
+def api_scan_targets():
+    price_targets = repo.list_scan_price_targets()
+    discovery_targets = []
+    for src in repo.list_discovery_sources():
+        known = repo.list_known_listing_urls(src["category_id"], src["retailer_id"])
+        discovery_targets.append({
+            "source_id": src["id"], "category_key": src["category_key"], "retailer_key": src["retailer_key"],
+            "listing_url": src["listing_url"], "known_urls": sorted(known),
+        })
+    return jsonify({"price_targets": price_targets, "discovery_targets": discovery_targets})
+
+
+@api_bp.post("/scan/ingest")
+def api_scan_ingest():
+    """Body: {"price_results": [{"listing_id", "price", "availability"}],
+    "candidates": [{"source_id", "full_name", "url", "brand_guess",
+    "model_guess", "sku", "price_egp", "image_url"}]}"""
+    data = request.get_json(force=True)
+    price_results = data.get("price_results", [])
+    candidates = data.get("candidates", [])
+
+    updated = 0
+    touched_products = set()
+    for r in price_results:
+        listing_id = r.get("listing_id")
+        price = r.get("price")
+        if listing_id is None or price is None:
+            continue
+        listing = db.query_one("SELECT * FROM product_listings WHERE id=?", (listing_id,))
+        if listing is None:
+            continue
+        prior_pricing = repo.get_product_pricing(listing["product_id"])
+        price_check.record_price_result(listing_id, price, r.get("availability", "unknown"), source="daily_scan")
+        touched_products.add((listing["product_id"], prior_pricing.get("availability")))
+        updated += 1
+
+    alerts_created = 0
+    for pid, prior_availability in touched_products:
+        alerts_created += len(price_check.evaluate_and_alert(pid, previous_availability=prior_availability))
+
+    sources_by_id = {s["id"]: s for s in repo.list_discovery_sources()}
+    candidates_created = 0
+    for c in candidates:
+        src = sources_by_id.get(c.get("source_id"))
+        if src is None or not c.get("url") or not c.get("full_name"):
+            continue
+        created = repo.create_candidate(
+            category_id=src["category_id"], retailer_id=src["retailer_id"],
+            full_name=c["full_name"], url=c["url"],
+            brand_guess=c.get("brand_guess", ""), model_guess=c.get("model_guess", ""),
+            sku=c.get("sku", ""), price_egp=c.get("price_egp"), image_url=c.get("image_url", ""),
+        )
+        if created:
+            candidates_created += 1
+
+    return jsonify({"price_updates_applied": updated, "alerts_created": alerts_created,
+                     "candidates_created": candidates_created})
+
+
+# ============================= New Finds (review queue) =====================================
+
+@api_bp.get("/candidates")
+def api_list_candidates():
+    status = request.args.get("status", "pending")
+    return jsonify(repo.list_candidates(status=status or None))
+
+
+@api_bp.post("/candidates/<int:candidate_id>/approve")
+def api_approve_candidate(candidate_id):
+    product_id = repo.approve_candidate(candidate_id, actor=_actor())
+    if product_id is None:
+        return _not_found("Candidate not found or already reviewed")
+    return jsonify({"product_id": product_id})
+
+
+@api_bp.post("/candidates/<int:candidate_id>/dismiss")
+def api_dismiss_candidate(candidate_id):
+    ok = repo.dismiss_candidate(candidate_id, actor=_actor())
+    if not ok:
+        return _not_found("Candidate not found or already reviewed")
+    return jsonify({"dismissed": True})
+
+
 # ============================= Settings =====================================
 
 @api_bp.get("/settings")

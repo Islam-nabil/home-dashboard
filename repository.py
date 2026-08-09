@@ -81,13 +81,28 @@ def get_retailer(retailer_id):
     return db.query_one("SELECT * FROM retailers WHERE id=?", (retailer_id,))
 
 
-def get_or_create_retailer(key, name=None, base_url="", provider_key="manual", credibility_score=70, notes=""):
+def get_or_create_retailer(key, name=None, base_url="", provider_key="manual", credibility_score=70, notes="",
+                            render_mode=None, allow_category_scan=None):
     row = db.query_one("SELECT * FROM retailers WHERE key=?", (key,))
     if row:
+        # Flip render_mode/allow_category_scan on an already-existing retailer
+        # if explicitly passed — this is how re-running seed.py after a
+        # verified finding (e.g. "B.TECH needs JS rendering") updates a
+        # retailer that was created by an older run of this app, without
+        # needing a one-off SQL migration for every such finding.
+        updates = {}
+        if render_mode is not None and row["render_mode"] != render_mode:
+            updates["render_mode"] = render_mode
+        if allow_category_scan is not None and row["allow_category_scan"] != (1 if allow_category_scan else 0):
+            updates["allow_category_scan"] = 1 if allow_category_scan else 0
+        if updates:
+            db.update("retailers", row["id"], updates)
+            row = db.query_one("SELECT * FROM retailers WHERE id=?", (row["id"],))
         return dict(row)
     new_id = db.insert("retailers", {
         "key": key, "name": name or key, "base_url": base_url,
         "provider_key": provider_key, "credibility_score": credibility_score, "notes": notes,
+        "render_mode": render_mode or "static", "allow_category_scan": 1 if allow_category_scan else 0,
     })
     return db.query_one("SELECT * FROM retailers WHERE id=?", (new_id,))
 
@@ -476,6 +491,121 @@ def add_research_source(product_id, url, retailer, confidence="verified", note="
         "product_id": product_id, "listing_id": listing_id, "url": url, "retailer": retailer,
         "retrieved_at": db.now_iso(), "confidence": confidence, "note": note,
     })
+
+
+# ============================= Always-updated scanning (discovery + daily scan) ============
+
+def list_scan_price_targets():
+    """Active listings whose retailer needs JS rendering (render_mode='js') —
+    the set the GitHub Actions daily scan is responsible for pricing, since
+    PythonAnywhere's free tier can't run a real browser. See discovery.py."""
+    sql = """
+        SELECT pl.id AS listing_id, pl.url, pl.product_id, r.key AS retailer_key
+        FROM product_listings pl
+        JOIN retailers r ON r.id = pl.retailer_id
+        WHERE pl.is_active=1 AND pl.url != '' AND r.render_mode='js'
+    """
+    return db.query_all(sql)
+
+
+def list_discovery_sources():
+    sql = """
+        SELECT ds.*, c.key AS category_key, r.key AS retailer_key
+        FROM discovery_sources ds
+        JOIN categories c ON c.id = ds.category_id
+        JOIN retailers r ON r.id = ds.retailer_id
+        WHERE ds.is_active=1 AND r.allow_category_scan=1
+    """
+    return db.query_all(sql)
+
+
+def list_known_listing_urls(category_id, retailer_id):
+    sql = """
+        SELECT pl.url FROM product_listings pl
+        JOIN products p ON p.id = pl.product_id
+        WHERE p.category_id=? AND pl.retailer_id=? AND pl.url != ''
+    """
+    rows = db.query_all(sql, (category_id, retailer_id))
+    return {r["url"] for r in rows}
+
+
+def mark_discovery_source_scanned(source_id):
+    db.update("discovery_sources", source_id, {"last_scanned_at": db.now_iso()})
+
+
+def create_candidate(category_id, retailer_id, full_name, url, brand_guess="", model_guess="",
+                      sku="", price_egp=None, image_url=""):
+    """Insert a not-yet-seen product found by the scan. url is UNIQUE — a
+    second scan run finding the same link again is a silent no-op (INSERT
+    OR IGNORE), not a duplicate candidate."""
+    now = db.now_iso()
+    try:
+        return db.insert("product_candidates", {
+            "category_id": category_id, "retailer_id": retailer_id, "full_name": full_name,
+            "brand_guess": brand_guess, "model_guess": model_guess, "sku": sku,
+            "price_egp": price_egp, "image_url": image_url, "url": url,
+            "status": "pending", "discovered_at": now, "reviewed_at": "", "reviewed_by": "",
+        })
+    except Exception:  # noqa: BLE001 - UNIQUE(url) violation on a repeat find, nothing to do
+        return None
+
+
+def list_candidates(status="pending"):
+    sql = """
+        SELECT pc.*, c.name AS category_name, c.icon AS category_icon, r.name AS retailer_name
+        FROM product_candidates pc
+        JOIN categories c ON c.id = pc.category_id
+        JOIN retailers r ON r.id = pc.retailer_id
+    """
+    params = ()
+    if status:
+        sql += " WHERE pc.status=?"
+        params = (status,)
+    sql += " ORDER BY pc.discovered_at DESC"
+    return db.query_all(sql, params)
+
+
+def get_candidate(candidate_id):
+    return db.query_one("SELECT * FROM product_candidates WHERE id=?", (candidate_id,))
+
+
+def approve_candidate(candidate_id, actor="Someone"):
+    """Turn a candidate into a real product + listing (+ price observation
+    if we have one) — the exact same shape api_wishlist_confirm creates, so
+    an approved find behaves identically to something pasted in by hand."""
+    c = get_candidate(candidate_id)
+    if c is None or c["status"] != "pending":
+        return None
+    product_id = create_product({
+        "category_id": c["category_id"], "brand": c["brand_guess"] or "Unknown",
+        "model": c["model_guess"] or "Unknown", "sku": c["sku"] or "",
+        "full_name": c["full_name"], "image_url": c["image_url"] or "",
+        "purchase_status": "shortlisted", "is_demo_data": 0,
+    })
+    listing_id = add_listing(product_id, c["retailer_id"], url=c["url"], match_confidence="uncertain")
+    if c["price_egp"] is not None:
+        add_price_observation(listing_id, c["price_egp"], availability="in_stock", source="discovery_scan")
+    add_research_source(product_id, c["url"], retailer=str(c["retailer_id"]), confidence="verified", listing_id=listing_id)
+    db.update("product_candidates", candidate_id, {
+        "status": "approved", "reviewed_at": db.now_iso(), "reviewed_by": actor,
+    })
+    log_activity(actor, "added", f"approved a new find: \"{c['full_name']}\"", entity_id=product_id)
+    return product_id
+
+
+def dismiss_candidate(candidate_id, actor="Someone"):
+    c = get_candidate(candidate_id)
+    if c is None or c["status"] != "pending":
+        return False
+    db.update("product_candidates", candidate_id, {
+        "status": "dismissed", "reviewed_at": db.now_iso(), "reviewed_by": actor,
+    })
+    return True
+
+
+def count_pending_candidates():
+    row = db.query_one("SELECT COUNT(*) c FROM product_candidates WHERE status='pending'")
+    return row["c"] if row else 0
 
 
 # ============================= Dashboard aggregation =====================================

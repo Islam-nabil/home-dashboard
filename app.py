@@ -54,6 +54,14 @@ def create_app():
     def inject_current_actor():
         return {"current_actor": session.get("actor_name", "")}
 
+    @app.context_processor
+    def inject_pending_finds_count():
+        import repository as repo
+        try:
+            return {"pending_finds_count": repo.count_pending_candidates()}
+        except Exception:
+            return {"pending_finds_count": 0}
+
     @app.teardown_appcontext
     def close_db(exception=None):
         pass  # connections are cached per-thread in db.py, kept open for the process lifetime

@@ -61,6 +61,28 @@ def init_db():
     with open(schema_path, "r", encoding="utf-8") as f:
         conn.executescript(f.read())
     conn.commit()
+    _run_migrations(conn)
+
+
+# --- Lightweight migrations ------------------------------------------------
+# `CREATE TABLE IF NOT EXISTS` (schema.sql) only helps for brand-new tables —
+# it's a no-op if a table already exists, so it can't add a COLUMN to a
+# table that was created by an older schema.sql on someone's already-
+# deployed database (e.g. this dashboard already running on PythonAnywhere).
+# Each entry here is "add this column if it's missing" — safe to run every
+# startup, does nothing once the column exists.
+_COLUMN_MIGRATIONS = [
+    ("retailers", "render_mode", "TEXT NOT NULL DEFAULT 'static'"),
+    ("retailers", "allow_category_scan", "INTEGER NOT NULL DEFAULT 0"),
+]
+
+
+def _run_migrations(conn):
+    for table, column, decl in _COLUMN_MIGRATIONS:
+        existing_cols = {row[1] for row in conn.execute(f"PRAGMA table_info({table})").fetchall()}
+        if column not in existing_cols:
+            conn.execute(f"ALTER TABLE {table} ADD COLUMN {column} {decl}")
+    conn.commit()
 
 
 def row_to_dict(row):

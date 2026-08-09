@@ -68,6 +68,12 @@ def activity_page():
     return render_template("activity_page.html", page="activity", activity=activity)
 
 
+@pages_bp.get("/new-finds")
+def new_finds_page():
+    candidates = repo.list_candidates(status="pending")
+    return render_template("new_finds.html", page="new_finds", candidates=candidates)
+
+
 @pages_bp.get("/settings")
 def settings_page():
     import db

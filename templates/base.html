@@ -20,6 +20,9 @@
     <nav>
       <a class="nav-link {{ 'active' if page=='dashboard' }}" href="{{ url_for('pages.dashboard') }}">📊 Dashboard</a>
       <a class="nav-link {{ 'active' if page=='wishlist' }}" href="{{ url_for('pages.wishlist_page') }}">➕ Wishlist</a>
+      <a class="nav-link {{ 'active' if page=='new_finds' }}" href="{{ url_for('pages.new_finds_page') }}">✨ New Finds
+        {% if pending_finds_count %}<span class="nav-cat-badge" style="background:var(--red); color:#fff;">{{ pending_finds_count }}</span>{% endif %}
+      </a>
       <a class="nav-link {{ 'active' if page=='my_home' }}" href="{{ url_for('pages.my_home_page') }}">🏡 My Home</a>
       <a class="nav-link {{ 'active' if page=='alerts' }}" href="{{ url_for('pages.alerts_page') }}">🔔 Alerts</a>
       <a class="nav-link {{ 'active' if page=='activity' }}" href="{{ url_for('pages.activity_page') }}">🕘 Activity</a>

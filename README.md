@@ -247,40 +247,92 @@ key `manual` / provider tier 5, and it's what most listings will
 realistically use unless you deploy somewhere with normal internet access
 and verify the automated adapters against the live sites.
 
-**Important honesty note about this build environment specifically:**
-outbound HTTP to arbitrary third-party hosts (btech.com, amazon.eg, etc.)
-is blocked in the sandbox this app was built in — verified directly (see
-`providers/generic_html.py`'s docstring). The automated providers are
-fully implemented and will start working the moment you run this
-somewhere with normal internet access (your own machine, a VPS, etc.), but
-**they were not live-tested against the real retailer sites during this
-build** — the seed data's prices came from Claude's web-search tool (a
-different, sandboxed research path), not from this app's own fetch code.
-Treat the automated adapters as "implemented, verify on first real run,"
-and lean on manual price entry until you've confirmed they work against
-each site's current markup.
+**Update (2026-08-09) — this is no longer a guess.** Both 2B and B.TECH
+were live-tested against real product pages via a real rendered browser
+session (this app's own sandbox still can't reach arbitrary outbound
+hosts, but a connected browser could). Results, and what changed because
+of them:
 
-**Running it on a schedule:** this sandbox cannot run a persistent
-background cron (the session ends and any in-process scheduler goes with
-it), so scheduling is left as a real OS-level job for wherever you deploy:
+- **2B**: price ships in the raw HTML (`product:price:amount` meta tag) —
+  `GenericHtmlProvider` genuinely works, no changes needed.
+- **B.TECH**: price is injected by JavaScript *after* the page loads — a
+  plain `requests.get()` sees "Loading..." and nothing else. Rendering the
+  page first reveals a real schema.org `Product`/`Offer` JSON-LD block, so
+  `providers/rendered_html.py` (`RenderedHtmlProvider`, using Playwright)
+  now handles B.TECH instead. This also **found and fixed a real bug** in
+  the shared JSON-LD extractor — it was reading `item.price` directly
+  instead of `item.offers.price`, which is where schema.org actually puts
+  it for a `Product`-typed block; see `tests/test_rendered_html.py` for a
+  regression test built from the real captured markup.
 
-```cron
-# every 12 hours
-0 */12 * * * cd /path/to/home-dashboard && /usr/bin/python3 scripts/run_price_check.py >> price_check.log 2>&1
+## 8.1 "Always updated" — the daily scan (new products + prices)
+
+The goal: check known prices *and* watch for brand-new products every day,
+without needing a paid host or bypassing any site's access policy. Two
+honest constraints shaped this:
+
+1. **2B's `robots.txt` explicitly disallows crawling its category/listing
+   pages, and separately names `anthropic-ai` as disallowed site-wide.**
+   That's the site directly opting out — this app has stuck to "never
+   bypass robots.txt" everywhere else, so 2B's *listing* pages are never
+   scanned. (Its individual product pages, for prices you're already
+   tracking, remain fine — that's a different, allowed access pattern.)
+2. **PythonAnywhere's free tier can't run a real browser** (no headless-
+   Chromium support in practice, and a 100 CPU-second/day cap that a
+   ~300MB browser download would blow through instantly) — and its free
+   tier stopped including scheduled tasks at all for accounts created
+   after January 2026.
+
+So the actual architecture:
+
+| Piece | Where it runs | What it does |
+|---|---|---|
+| `providers/generic_html.py` (existing) | PythonAnywhere, on demand | Prices for retailers whose pages are server-rendered (2B) |
+| `providers/rendered_html.py` (new) | GitHub Actions only | Prices for retailers needing real JS (B.TECH) — raises a clean "unsupported" if Playwright isn't installed, so it never breaks the PythonAnywhere-hosted button |
+| `discovery.py` (new) | GitHub Actions only | Scans B.TECH category pages for products not yet tracked, one category page per configured `discovery_sources` row |
+| `.github/workflows/daily-scan.yml` | GitHub, free, once a day | Calls PythonAnywhere's own `/api/price-check/run` for 2B, then runs `scripts/run_scan.py` (with Playwright) for B.TECH pricing + discovery, then POSTs results to `/api/scan/ingest` |
+| "New Finds" page (`/new-finds`) | The live site | Every discovered product lands here first — Approve or Dismiss, nothing is ever added to your comparisons automatically |
+
+**Coverage today:** B.TECH discovery is wired up for 5 of the app's 8
+categories (Refrigerator, Cooker, Air Conditioner, Washing Machine, TV) —
+their category-page URLs were live-verified. Water Heater/Microwave/Air
+Fryer aren't in `seed.DISCOVERY_SOURCES` yet because their B.TECH category
+URL wasn't found in the time spent looking; add a row (verify the URL
+resolves and contains `/en/p/` links first) to extend coverage. 2B and
+every other retailer stay price-check-only, by design (see above).
+
+**One-time setup to turn the daily scan on:**
+1. On GitHub: your repo → Settings → Secrets and variables → Actions → New
+   repository secret, add three: `DASHBOARD_BASE_URL` (e.g.
+   `https://islahmed.pythonanywhere.com`), `BASIC_AUTH_USERNAME`,
+   `BASIC_AUTH_PASSWORD` (same values as your PythonAnywhere `.env` — Basic
+   Auth is what protects these endpoints, no separate secret needed).
+2. Make sure `BASIC_AUTH_USERNAME`/`BASIC_AUTH_PASSWORD` are actually set
+   in PythonAnywhere's `.env` (see section 14) — the scan can't authenticate
+   without them.
+3. That's it — `.github/workflows/daily-scan.yml` runs every day at 03:00
+   UTC (05:00 Cairo time) automatically. You can also trigger it manually
+   any time: repo → Actions tab → "Daily price + new-product scan" →
+   "Run workflow".
+
+**Testing it yourself before relying on the schedule:**
+```bash
+pip install playwright && playwright install chromium
+DASHBOARD_BASE_URL=https://islahmed.pythonanywhere.com \
+  BASIC_AUTH_USERNAME=... BASIC_AUTH_PASSWORD=... \
+  python scripts/run_scan.py
 ```
-
-Or any equivalent (systemd timer, Render/Railway cron, GitHub Actions
-schedule hitting `POST /api/price-check/run`, etc). Until you set one up,
-the "Run price check now" button on the Settings page does the same thing
-on demand.
+(This won't work from inside a sandbox with no outbound internet — run it
+from your own machine or let the GitHub Actions job do it.)
 
 **Adding another retailer:** create a class in `providers/retailers.py`
-subclassing `GenericHtmlProvider` (or `PriceProvider` directly for a
-retailer with a real API), register it in `providers/registry.py`'s
+subclassing `GenericHtmlProvider` or `RenderedHtmlProvider` (whichever
+matches how that site actually serves price — verify this against a real
+page before assuming), register it in `providers/registry.py`'s
 `_PROVIDERS` dict, and add a row via `POST /api/retailers` with the
-matching `provider_key`. If the generic JSON-LD/meta/CSS extraction
-doesn't find that site's price, override `fetch()` with a
-site-specific selector.
+matching `provider_key`. Before adding a `discovery_sources` row for it,
+read its `robots.txt` first — if it disallows category/listing crawling or
+names AI bots specifically, leave `allow_category_scan` off, same as 2B.
 
 ---
 
@@ -518,16 +570,19 @@ itself has no login screen.
 
 ## 16. Current limitations
 
-- **Automated retailer price fetching is implemented but unverified live**
-  against the real sites (see section 8) — this sandbox has no outbound
-  access to test against btech.com/noon.com/etc. Budget time to verify/
-  tune the CSS selectors in `providers/generic_html.py` against each
-  site's actual current markup after you deploy somewhere with normal
-  internet access.
-- **No persistent background scheduler ships built-in** — you provide the
-  cron/systemd timer/PaaS scheduled job (section 8). This is a correct
-  architectural choice, not a shortcut: a web app process shouldn't also
-  be its own cron daemon.
+- **2B and B.TECH price fetching are verified live** (section 8); every
+  other retailer (Amazon Egypt, Noon, Carrefour, Raya, RadioShack, Cairo
+  Sales) is still "implemented, unverified" — same caveat as before,
+  budget time to check each one's actual current markup before relying on
+  it, and check its `robots.txt` before ever adding a `discovery_sources`
+  row for it.
+- **New-product discovery only covers B.TECH, and only 5 of 8 categories**
+  (section 8.1) — 2B is excluded on principle (its robots.txt disallows
+  it), and Water Heater/Microwave/Air Fryer don't have a verified B.TECH
+  category URL yet.
+- **The daily scan needs the GitHub Actions secrets set up once** (section
+  8.1) — until then, prices/discovery only update when someone clicks the
+  manual buttons.
 - **TV / Water Heater / Microwave / Air Fryer have zero live research** —
   demo placeholders only (section 11).
 - **Single user, no auth** — by design for v1 (section 15).

@@ -36,7 +36,18 @@ CREATE TABLE IF NOT EXISTS retailers (
     base_url            TEXT NOT NULL DEFAULT '',
     provider_key        TEXT NOT NULL DEFAULT 'manual', -- matches providers/registry.py
     credibility_score   INTEGER NOT NULL DEFAULT 70, -- 0-100, manually assessed trustworthiness
-    notes               TEXT NOT NULL DEFAULT ''
+    notes               TEXT NOT NULL DEFAULT '',
+    render_mode         TEXT NOT NULL DEFAULT 'static',
+        -- static = plain HTTP fetch works (price is in the raw HTML, e.g. 2B)
+        -- js     = page needs real JS execution to expose price (e.g. B.TECH) -> needs providers/rendered_html.py,
+        --          which only runs where Playwright/Chromium is installed (GitHub Actions daily scan, not
+        --          PythonAnywhere's free tier — see README "Always-updated scanning")
+        -- manual_only = automated fetching is unsupported or disallowed (robots.txt) for this retailer
+    allow_category_scan INTEGER NOT NULL DEFAULT 0
+        -- 1 = this retailer's category/listing pages may be crawled to discover new products
+        -- (verified against robots.txt case-by-case — see discovery.py module docstring). Default 0
+        -- ("don't crawl") so a newly-added retailer never gets scanned until someone deliberately checks
+        -- its robots.txt and flips this on.
 );
 
 CREATE TABLE IF NOT EXISTS products (
@@ -169,6 +180,44 @@ CREATE TABLE IF NOT EXISTS price_check_log (
     detail          TEXT DEFAULT ''
 );
 CREATE INDEX IF NOT EXISTS idx_checklog_listing ON price_check_log(listing_id);
+
+-- Where to look for NEW products per category+retailer (the daily discovery
+-- scan). Only populated for retailers where allow_category_scan=1 -- i.e.
+-- someone has actually checked that retailer's robots.txt allows crawling
+-- its listing pages. See discovery.py.
+CREATE TABLE IF NOT EXISTS discovery_sources (
+    id              INTEGER PRIMARY KEY AUTOINCREMENT,
+    category_id     INTEGER NOT NULL REFERENCES categories(id) ON DELETE CASCADE,
+    retailer_id     INTEGER NOT NULL REFERENCES retailers(id) ON DELETE CASCADE,
+    listing_url     TEXT NOT NULL,   -- the category/listing page to scan
+    is_active       INTEGER NOT NULL DEFAULT 1,
+    last_scanned_at TEXT DEFAULT '',
+    created_at      TEXT NOT NULL
+);
+CREATE UNIQUE INDEX IF NOT EXISTS idx_discovery_cat_retailer ON discovery_sources(category_id, retailer_id);
+
+-- Products the daily scan found that aren't in the catalog yet. Never
+-- auto-added -- surfaced on the "New Finds" page for a human to Approve
+-- (creates a real product + listing + price observation) or Dismiss. Same
+-- "never silently add data" philosophy as the rest of this app.
+CREATE TABLE IF NOT EXISTS product_candidates (
+    id              INTEGER PRIMARY KEY AUTOINCREMENT,
+    category_id     INTEGER NOT NULL REFERENCES categories(id) ON DELETE CASCADE,
+    retailer_id     INTEGER NOT NULL REFERENCES retailers(id) ON DELETE CASCADE,
+    full_name       TEXT NOT NULL,
+    brand_guess     TEXT DEFAULT '',
+    model_guess     TEXT DEFAULT '',
+    sku             TEXT DEFAULT '',
+    price_egp       REAL,
+    image_url       TEXT DEFAULT '',
+    url             TEXT NOT NULL,
+    status          TEXT NOT NULL DEFAULT 'pending',  -- pending | approved | dismissed
+    discovered_at   TEXT NOT NULL,
+    reviewed_at     TEXT DEFAULT '',
+    reviewed_by     TEXT DEFAULT ''
+);
+CREATE INDEX IF NOT EXISTS idx_candidates_status ON product_candidates(status);
+CREATE UNIQUE INDEX IF NOT EXISTS idx_candidates_url ON product_candidates(url);
 
 -- "Who did what" activity feed — this is a shared household tool (not
 -- multi-account auth, see README Security), so "identity" here is just a
