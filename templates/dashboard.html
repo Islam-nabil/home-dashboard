@@ -84,6 +84,7 @@
   <div class="table-wrap">
     <table class="data-table" data-sortable>
       <thead><tr>
+        <th></th>
         <th data-sort-key="name">Product</th>
         <th data-sort-key="category">Category</th>
         <th data-sort-key="price" data-sort-type="number" class="num">Price</th>
@@ -93,6 +94,7 @@
       <tbody>
         {% for p in best_deals %}
         <tr onclick="window.location='{{ url_for('pages.product_page', product_id=p.id) }}'" style="cursor:pointer;">
+          <td>{% if p.image_url %}<img src="{{ p.image_url }}" class="thumb" loading="lazy" onerror="this.style.display='none'">{% else %}<div class="thumb thumb-placeholder">{{ p.category.icon }}</div>{% endif %}</td>
           <td data-cell="name" data-value="{{ p.full_name }}">{{ p.full_name }}</td>
           <td data-cell="category" data-value="{{ p.category.name }}">{{ p.category.name }}</td>
           <td data-cell="price" data-value="{{ p.pricing.current_price or 0 }}" class="num">{{ '{:,.0f}'.format(p.pricing.current_price) if p.pricing.current_price else '—' }}</td>

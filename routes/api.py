@@ -263,6 +263,7 @@ def api_wishlist_confirm():
             "category_id": data["category_id"], "brand": data.get("brand", "Unknown"),
             "model": data.get("model", "Unknown"), "full_name": data.get("full_name", ""),
             "capacity": data.get("capacity", ""), "target_buy_price_egp": data.get("target_buy_price_egp"),
+            "image_url": data.get("image_url", ""),
             "purchase_status": "shortlisted", "is_demo_data": 0,
         })
 

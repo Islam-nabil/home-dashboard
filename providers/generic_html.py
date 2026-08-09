@@ -200,6 +200,11 @@ class GenericHtmlProvider(PriceProvider):
             title_tag = soup.find("title")
             title = title_tag.get_text(strip=True) if title_tag else None
 
+        image_url = None
+        og_image = soup.find("meta", property="og:image") or soup.find("meta", attrs={"name": "og:image"})
+        if og_image and og_image.get("content"):
+            image_url = og_image["content"].strip()
+
         if price is None:
             raise ProviderError(
                 "Could not find a structured price on the page (no JSON-LD/meta/common CSS match). "
@@ -207,4 +212,5 @@ class GenericHtmlProvider(PriceProvider):
             )
 
         return self._result(url, retailer=urlparse(url).netloc, product=title,
-                             current_price=price, availability=availability or "unknown")
+                             current_price=price, availability=availability or "unknown",
+                             image_url=image_url)

@@ -8,3 +8,4 @@ venv/
 .venv/
 .qodo/
 .git_stale_locks/
+.old_db_backups/

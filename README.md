@@ -394,19 +394,76 @@ assistant.
 
 ## 14. Deployment
 
-This is a plain Flask app — deploy it anywhere Python runs:
+This is a plain Flask app — deploy it anywhere Python runs. The one thing
+that matters most for THIS app: the database is a single SQLite **file**
+(`data/dashboard.db`). Any host that wipes its filesystem between requests
+or on every restart will silently lose your price history, wishlist, and
+purchases. That rules out most "free" PaaS web-service tiers (Render,
+Railway, Fly.io free tiers do **not** include a persistent disk — you'd
+need to pay a few $/month for one). The recommended free option below
+avoids that trap entirely.
 
-- **Simplest:** your own machine or a small VPS. `pip install -r
-  requirements.txt && gunicorn -w 2 -b 0.0.0.0:8000 app:app` behind
-  whatever reverse proxy/TLS you prefer (or just `python app.py` on your
-  home network).
-- **PaaS (Render/Railway/Fly.io/etc.):** point it at `app.py`, set env
-  vars from `.env.example`, mount a persistent volume for `data/` (SQLite
-  is a single file — make sure it survives restarts), and add a scheduled
-  job hitting `python scripts/run_price_check.py` or `POST
-  /api/price-check/run`.
-- **Single-user only, no auth beyond `SECRET_KEY`** — see
-  [Security](#15-security--privacy).
+### Recommended free option: PythonAnywhere
+
+PythonAnywhere's free tier gives you a real, always-there Linux home
+directory (files persist forever, no surprise resets) and a free
+`<you>.pythonanywhere.com` subdomain — a good fit for a small single-user
+Flask + SQLite app like this one.
+
+1. Create a free account at pythonanywhere.com.
+2. **Upload the code.** Easiest path: push this folder to a GitHub repo,
+   then in a PythonAnywhere Bash console run `git clone <your-repo-url>`.
+   (Or use their "Files" tab to upload a zip and unzip it.)
+3. Open a Bash console in PythonAnywhere and install dependencies into a
+   virtualenv:
+   ```
+   cd home-dashboard
+   python3.10 -m venv venv
+   source venv/bin/activate
+   pip install -r requirements.txt
+   cp .env.example .env   # then edit .env: set SECRET_KEY, and
+                           # BASIC_AUTH_USERNAME/PASSWORD if you want a
+                           # password prompt (recommended — see below)
+   python scripts/run_seed.py   # first time only, populates the DB
+   ```
+4. Go to the **Web** tab → "Add a new web app" → choose **Manual
+   configuration** (not "Flask", since we already have our own `app.py`) →
+   pick the same Python version as your venv.
+5. Set the **virtualenv** path to `/home/<you>/home-dashboard/venv`.
+6. Edit the generated **WSGI configuration file** (linked from the Web
+   tab) so it imports this app:
+   ```python
+   import sys
+   path = '/home/<you>/home-dashboard'
+   if path not in sys.path:
+       sys.path.insert(0, path)
+   from app import app as application
+   ```
+7. Click **Reload**. Your dashboard is live at `https://<you>.pythonanywhere.com`.
+8. (Optional but recommended for a public link) Set `BASIC_AUTH_USERNAME`
+   / `BASIC_AUTH_PASSWORD` in `.env` before reloading — this puts a simple
+   username/password prompt in front of the whole app, since it'll have
+   your household budget on a public URL.
+9. **Scheduled price checks:** the Free plan includes one scheduled task
+   slot (Tasks tab) — point it at
+   `/home/<you>/home-dashboard/venv/bin/python /home/<you>/home-dashboard/scripts/run_price_check.py`
+   once a day. (Free-tier tasks run once/day; paid tiers allow hourly.)
+
+### Other options
+
+- **Your own machine / a VPS:** `pip install -r requirements.txt &&
+  gunicorn -w 2 -b 0.0.0.0:8000 app:app` behind whatever reverse proxy/TLS
+  you prefer (or just `python app.py` on your home network — this is what
+  "run it locally and share on WiFi" means in practice).
+- **Render/Railway/Fly.io:** works the same way (`gunicorn app:app`,
+  env vars from `.env.example`) but **you must attach a persistent disk**
+  mounted at `data/` (a small paid add-on on these platforms) or the
+  database resets on every deploy/restart. Also add a scheduled job
+  hitting `python scripts/run_price_check.py` or `POST
+  /api/price-check/run` for automated price monitoring.
+- **Single-user only, no accounts/login system** — see
+  [Security](#15-security--privacy). The optional Basic Auth gate above is
+  the recommended minimum if the URL is reachable from the internet.
 
 ---
 

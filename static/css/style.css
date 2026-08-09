@@ -223,6 +223,19 @@ label { font-size: 12px; color: var(--muted); display: block; margin-bottom: 4px
 .assistant-input-row { display: flex; gap: 6px; padding: 10px; border-top: 1px solid var(--border); }
 .assistant-input-row input { flex: 1; }
 
+/* --- Product images --- */
+.thumb {
+  width: 44px; height: 44px; object-fit: contain; border-radius: var(--radius-sm);
+  background: var(--surface-2); border: 1px solid var(--border); padding: 3px; display: block;
+}
+.thumb-placeholder { display: flex; align-items: center; justify-content: center; font-size: 18px; color: var(--muted-2); }
+.thumb-lg { width: 96px; height: 96px; padding: 6px; }
+.hero-img {
+  width: 84px; height: 84px; object-fit: contain; border-radius: var(--radius);
+  background: var(--surface-2); border: 1px solid var(--border); padding: 6px; flex-shrink: 0;
+}
+.hero-img-placeholder { display: flex; align-items: center; justify-content: center; font-size: 34px; color: var(--muted-2); }
+
 /* --- Misc --- */
 .empty-state { padding: 40px 20px; text-align: center; color: var(--muted); border: 1px dashed var(--border); border-radius: var(--radius); }
 .flex-between { display: flex; align-items: center; justify-content: space-between; }

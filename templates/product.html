@@ -26,11 +26,18 @@
   <div class="stack-16">
 
     <div class="card">
-      <div class="flex-between">
-        <div>
-          <div class="muted" style="font-size:12px;">Current Price</div>
-          <div style="font-size:26px; font-weight:750;">{{ '{:,.0f} EGP'.format(product.pricing.current_price) if product.pricing.current_price else 'No price yet' }}</div>
-          <div class="muted" style="font-size:12px;">{{ product.pricing.best_retailer or 'No retailer' }} · last checked {{ product.pricing.last_checked_at or '—' }}</div>
+      <div class="flex-between" style="align-items:flex-start;">
+        <div style="display:flex; gap:14px; align-items:flex-start;">
+          {% if product.image_url %}
+          <img src="{{ product.image_url }}" class="hero-img" onerror="this.outerHTML='<div class=&quot;hero-img hero-img-placeholder&quot;>{{ product.category.icon }}</div>'">
+          {% else %}
+          <div class="hero-img hero-img-placeholder">{{ product.category.icon }}</div>
+          {% endif %}
+          <div>
+            <div class="muted" style="font-size:12px;">Current Price</div>
+            <div style="font-size:26px; font-weight:750;">{{ '{:,.0f} EGP'.format(product.pricing.current_price) if product.pricing.current_price else 'No price yet' }}</div>
+            <div class="muted" style="font-size:12px;">{{ product.pricing.best_retailer or 'No retailer' }} · last checked {{ product.pricing.last_checked_at or '—' }}</div>
+          </div>
         </div>
         {{ m.deal_badge(product.deal_score) }}
       </div>

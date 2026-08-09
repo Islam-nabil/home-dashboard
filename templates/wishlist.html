@@ -40,6 +40,8 @@
       <div class="field"><label>Price (EGP)</label><input type="number" name="price_egp"></div>
     </div>
     <div class="field"><label>Product URL</label><input name="url"></div>
+    <div class="field"><label>Image URL <span class="muted-2">(auto-filled when extraction finds one)</span></label><input name="image_url" id="image-url-field" placeholder="https://.../product.jpg"></div>
+    <div id="image-preview" style="margin:4px 0 8px;"></div>
     <div class="field"><label>Target buy price (EGP, optional)</label><input type="number" name="target_buy_price_egp"></div>
     <button type="submit" class="btn-primary" style="width:100%;">Save to catalog</button>
   </form>
@@ -82,6 +84,10 @@ document.getElementById('extract-btn').addEventListener('click', async function 
       document.querySelector('[name="brand"]').value = result.brand_guess || '';
       document.querySelector('[name="model"]').value = result.model_guess || '';
       if (result.price) document.querySelector('[name="price_egp"]').value = result.price;
+      if (result.image_url) {
+        document.getElementById('image-url-field').value = result.image_url;
+        document.getElementById('image-preview').innerHTML = `<img src="${result.image_url}" class="thumb thumb-lg" onerror="this.style.display='none'">`;
+      }
       const retailerSelect = document.querySelector('[name="retailer_key"]');
       if ([...retailerSelect.options].some(o => o.value === result.retailer_key)) retailerSelect.value = result.retailer_key;
 
@@ -114,6 +120,7 @@ document.getElementById('confirm-form').addEventListener('submit', async functio
     retailer_key: fd.get('retailer_key'),
     price_egp: fd.get('price_egp') ? parseFloat(fd.get('price_egp')) : null,
     url: fd.get('url'),
+    image_url: fd.get('image_url') || '',
     target_buy_price_egp: fd.get('target_buy_price_egp') ? parseFloat(fd.get('target_buy_price_egp')) : null,
   };
   const product = await apiFetch('/api/wishlist/confirm', { method: 'POST', body: JSON.stringify(body) });

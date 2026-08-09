@@ -4,7 +4,8 @@ Flask application factory + entrypoint.
 Run with:  python app.py
 (or `flask --app app run` / gunicorn app:app in production - see README)
 """
-from flask import Flask
+import hmac
+from flask import Flask, request, Response
 
 import config
 import db
@@ -22,6 +23,24 @@ def create_app():
     from routes.api import api_bp
     app.register_blueprint(pages_bp)
     app.register_blueprint(api_bp, url_prefix="/api")
+
+    # Optional HTTP Basic Auth gate — only active when both
+    # BASIC_AUTH_USERNAME and BASIC_AUTH_PASSWORD are set (see config.py /
+    # README "Deployment"). Off by default so local/dev use is unaffected.
+    if config.BASIC_AUTH_USERNAME and config.BASIC_AUTH_PASSWORD:
+        @app.before_request
+        def _require_basic_auth():
+            auth = request.authorization
+            valid = (
+                auth is not None
+                and hmac.compare_digest(auth.username or "", config.BASIC_AUTH_USERNAME)
+                and hmac.compare_digest(auth.password or "", config.BASIC_AUTH_PASSWORD)
+            )
+            if not valid:
+                return Response(
+                    "Authentication required.", 401,
+                    {"WWW-Authenticate": 'Basic realm="Home Setup Dashboard"'},
+                )
 
     @app.context_processor
     def inject_nav_categories():

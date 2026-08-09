@@ -9,6 +9,10 @@
 Flask>=3.0
 Jinja2>=3.1
 
+# Production WSGI server (not needed for `python app.py` local/dev use —
+# only required if you deploy behind gunicorn, e.g. on Render/Railway/a VPS).
+gunicorn>=21.2
+
 # Used by providers/generic_html.py (best-effort retailer page price
 # extraction) and wishlist.py (paste-a-URL import). The app still runs
 # without these — automated fetching just falls back to "manual tracking

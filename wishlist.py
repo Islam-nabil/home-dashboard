@@ -61,6 +61,7 @@ def extract_from_url(url):
         "model_guess": model_guess,
         "price": result.get("currentPrice"),
         "availability": result.get("availability"),
+        "image_url": result.get("imageUrl"),
     }
 
 

@@ -128,3 +128,12 @@ SECRET_KEY = os.environ.get("SECRET_KEY", "dev-only-personal-app-secret-change-m
 FLASK_HOST = os.environ.get("FLASK_HOST", "127.0.0.1")
 FLASK_PORT = _env_int("FLASK_PORT", 5000)
 FLASK_DEBUG = _env_bool("FLASK_DEBUG", True)
+
+# --- Optional simple password gate --------------------------------------------
+# This app has no login system (see README "Security & privacy") — it's meant
+# for a single household, not multi-user auth. If you deploy it somewhere
+# reachable from the internet (e.g. to share with family), set both of these
+# to turn on an HTTP Basic Auth prompt in front of every page. Leave either
+# blank (the default) to leave the app open, which is fine for local-only use.
+BASIC_AUTH_USERNAME = os.environ.get("BASIC_AUTH_USERNAME", "")
+BASIC_AUTH_PASSWORD = os.environ.get("BASIC_AUTH_PASSWORD", "")

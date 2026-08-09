@@ -42,7 +42,7 @@ class PriceProvider(ABC):
     def fetch(self, url: str) -> dict:
         raise NotImplementedError
 
-    def _result(self, url, retailer=None, product=None, current_price=None, availability="unknown"):
+    def _result(self, url, retailer=None, product=None, current_price=None, availability="unknown", image_url=None):
         import db
         return {
             "retailer": retailer or self.display_name,
@@ -50,5 +50,6 @@ class PriceProvider(ABC):
             "currentPrice": current_price,
             "availability": availability,
             "url": url,
+            "imageUrl": image_url,
             "retrievedAt": db.now_iso(),
         }

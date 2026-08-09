@@ -22,8 +22,10 @@ def category_page(key):
     recs = {}
     for p in products:
         recs[p["id"]] = repo.get_recommendation_for_product(p["id"])
+    capacities = sorted({p["capacity"] for p in products if p.get("capacity")})
+    brands = sorted({p["brand"] for p in products if p.get("brand")})
     return render_template("category.html", page="category", category=category, products=products,
-                            budget=budget, recommendations=recs)
+                            budget=budget, recommendations=recs, capacities=capacities, brands=brands)
 
 
 @pages_bp.get("/products/<int:product_id>")

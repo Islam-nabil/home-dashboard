@@ -39,10 +39,21 @@
       <option value="purchased">Purchased</option>
       <option value="rejected">Rejected</option>
     </select>
+    {% if capacities|length > 1 %}
+    <select data-select-filter-target="#compare-table tbody tr" data-select-filter-attr="data-capacity">
+      <option value="">All sizes</option>
+      {% for cap in capacities %}<option value="{{ cap }}">{{ cap }}</option>{% endfor %}
+    </select>
+    {% endif %}
+    <select data-select-filter-target="#compare-table tbody tr" data-select-filter-attr="data-brand">
+      <option value="">All brands</option>
+      {% for b in brands %}<option value="{{ b }}">{{ b }}</option>{% endfor %}
+    </select>
   </div>
   <div class="table-wrap">
     <table class="data-table" id="compare-table" data-sortable>
       <thead><tr>
+        <th></th>
         <th data-sort-key="name">Product</th>
         <th data-sort-key="price" data-sort-type="number" class="num">Current Price</th>
         <th data-sort-key="store">Best Store</th>
@@ -55,9 +66,13 @@
       </tr></thead>
       <tbody>
         {% for p in products %}
-        <tr data-status="{{ p.purchase_status }}" data-search-text="{{ p.full_name }} {{ p.brand }} {{ p.model }}" onclick="window.location='{{ url_for('pages.product_page', product_id=p.id) }}'" style="cursor:pointer;">
+        <tr data-status="{{ p.purchase_status }}" data-capacity="{{ p.capacity }}" data-brand="{{ p.brand }}" data-search-text="{{ p.full_name }} {{ p.brand }} {{ p.model }}" onclick="window.location='{{ url_for('pages.product_page', product_id=p.id) }}'" style="cursor:pointer;">
+          <td>
+            {% if p.image_url %}<img src="{{ p.image_url }}" class="thumb" loading="lazy" onerror="this.outerHTML='<div class=&quot;thumb thumb-placeholder&quot;>{{ category.icon }}</div>'">{% else %}<div class="thumb thumb-placeholder">{{ category.icon }}</div>{% endif %}
+          </td>
           <td data-cell="name" data-value="{{ p.full_name }}">
             {{ p.full_name }}
+            {% if p.capacity %}<div class="muted-2" style="font-size:11px;">{{ p.capacity }}</div>{% endif %}
             {% if p.is_demo_data %}<span class="badge-demo" title="Seeded with an estimated/unverified price — confirm before relying on it.">DEMO</span>{% endif %}
           </td>
           <td data-cell="price" data-value="{{ p.pricing.current_price or 0 }}" class="num">{{ '{:,.0f}'.format(p.pricing.current_price) if p.pricing.current_price else '—' }}</td>
@@ -103,17 +118,27 @@
   <div class="modal">
     <span class="modal-close" onclick="closeModal('add-product-modal')">✕</span>
     <h3>Add a product to {{ category.name }}</h3>
-    <form id="add-product-form" class="stack-8" style="margin-top:12px;">
+    <p class="muted" style="font-size:12px; margin-top:4px;">Paste a product page URL to try auto-filling the fields below (works on many retailer sites), or just fill them in by hand.</p>
+    <div class="field-row" style="margin-top:8px;">
+      <div class="field" style="flex:1;"><input type="text" id="quick-add-url" placeholder="https://btech.com/en/p/..."></div>
+      <button type="button" class="btn-secondary" id="quick-add-extract-btn" style="align-self:flex-start;">Auto-fill</button>
+    </div>
+    <div id="quick-add-status" class="muted" style="font-size:12px; margin-bottom:8px;"></div>
+    <div id="quick-add-image-preview"></div>
+    <form id="add-product-form" class="stack-8" style="margin-top:4px;">
       <input type="hidden" name="category_id" value="{{ category.id }}">
+      <input type="hidden" name="image_url" id="quick-add-image-url">
+      <input type="hidden" name="url" id="quick-add-source-url">
       <div class="field-row">
         <div class="field"><label>Brand</label><input name="brand" required></div>
         <div class="field"><label>Model</label><input name="model" required></div>
       </div>
       <div class="field"><label>Full product name</label><input name="full_name" placeholder="e.g. LG NoFrost Refrigerator 475L Inverter"></div>
       <div class="field-row">
-        <div class="field"><label>Capacity / size</label><input name="capacity" placeholder="e.g. 475L or 1.5 HP"></div>
+        <div class="field"><label>Capacity / size</label><input name="capacity" placeholder="e.g. 475L or 1.5 HP or 65-inch"></div>
         <div class="field"><label>Target buy price (EGP)</label><input type="number" name="target_buy_price_egp"></div>
       </div>
+      <div class="field"><label>Price now (EGP, optional)</label><input type="number" name="price_egp"></div>
       <button type="submit" class="btn-primary">Add product</button>
     </form>
   </div>
@@ -132,16 +157,50 @@ document.getElementById('edit-category-form').addEventListener('submit', async f
   })});
   location.reload();
 });
+document.getElementById('quick-add-extract-btn').addEventListener('click', async function () {
+  const url = document.getElementById('quick-add-url').value.trim();
+  if (!url) return;
+  const status = document.getElementById('quick-add-status');
+  status.textContent = 'Extracting...';
+  try {
+    const result = await apiFetch('/api/wishlist/extract', { method: 'POST', body: JSON.stringify({ url }) });
+    document.getElementById('quick-add-source-url').value = url;
+    if (result.extracted) {
+      status.textContent = 'Auto-filled from the page — please double check before saving.';
+      document.querySelector('#add-product-form [name="full_name"]').value = result.full_name || '';
+      document.querySelector('#add-product-form [name="brand"]').value = result.brand_guess || '';
+      document.querySelector('#add-product-form [name="model"]').value = result.model_guess || '';
+      if (result.price) document.querySelector('#add-product-form [name="price_egp"]').value = result.price;
+      if (result.image_url) {
+        document.getElementById('quick-add-image-url').value = result.image_url;
+        document.getElementById('quick-add-image-preview').innerHTML = `<img src="${result.image_url}" class="thumb thumb-lg" onerror="this.style.display='none'">`;
+      }
+    } else {
+      status.textContent = 'Could not auto-extract (' + (result.reason || 'unknown reason') + '). Fill the form in manually — this is normal for many JS-heavy sites.';
+    }
+  } catch (e) {
+    status.textContent = 'Extraction failed: ' + e.message + '. Fill the form in manually.';
+  }
+});
+
 document.getElementById('add-product-form').addEventListener('submit', async function (e) {
   e.preventDefault();
   const fd = new FormData(e.target);
   const product = await apiFetch('/api/products', { method: 'POST', body: JSON.stringify({
     category_id: parseInt(fd.get('category_id')),
     brand: fd.get('brand'), model: fd.get('model'), full_name: fd.get('full_name'),
-    capacity: fd.get('capacity'),
+    capacity: fd.get('capacity'), image_url: fd.get('image_url') || '',
     target_buy_price_egp: fd.get('target_buy_price_egp') ? parseFloat(fd.get('target_buy_price_egp')) : null,
     purchase_status: 'shortlisted',
   })});
+  const priceEgp = fd.get('price_egp');
+  if (priceEgp) {
+    const sourceUrl = fd.get('url') || '';
+    await apiFetch(`/api/products/${product.id}/price`, { method: 'POST', body: JSON.stringify({
+      retailer_key: 'other', retailer_name: 'Other / unlisted', price_egp: parseFloat(priceEgp),
+      url: sourceUrl, source_url: sourceUrl, is_verified: !!sourceUrl,
+    })});
+  }
   window.location = '/products/' + product.id;
 });
 </script>
