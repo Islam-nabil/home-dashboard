@@ -223,3 +223,44 @@ class GenericHtmlProvider(PriceProvider):
         return self._result(url, retailer=urlparse(url).netloc, product=title,
                              current_price=price, availability=availability or "unknown",
                              image_url=image_url)
+
+    def collect_listing_links(self, listing_url, link_contains):
+        """Plain-fetch a category/listing page and return the de-duplicated
+        set of absolute product-detail URLs on it whose path contains
+        `link_contains` (e.g. '.html' for Jumia). Mirrors
+        RenderedHtmlProvider.collect_listing_links exactly, minus the
+        browser — for static sites the page's raw HTML already has every
+        product link, no JavaScript needs to run first. Used by
+        discovery.py; never returns price/name data itself, just candidate
+        URLs to visit individually through fetch()."""
+        if not HAS_DEPS:
+            raise ProviderUnsupported("requests/beautifulsoup4 not installed in this environment.")
+        if not _robots_allowed(listing_url):
+            raise ProviderUnsupported(f"robots.txt disallows fetching this URL: {listing_url}")
+
+        host = urlparse(listing_url).netloc
+        _throttle(host)
+
+        try:
+            resp = requests.get(
+                listing_url,
+                headers={"User-Agent": config.REQUEST_USER_AGENT, "Accept-Language": "en,ar;q=0.8"},
+                timeout=config.REQUEST_TIMEOUT_SECONDS,
+            )
+        except requests.RequestException as e:
+            raise ProviderError(f"Request failed: {e}")
+        if resp.status_code >= 400:
+            raise ProviderError(f"HTTP {resp.status_code} fetching {listing_url}")
+
+        soup = BeautifulSoup(resp.text, "lxml")
+        origin = f"{urlparse(listing_url).scheme}://{host}"
+        links = set()
+        for a in soup.find_all("a", href=True):
+            href = a["href"]
+            if link_contains not in href:
+                continue
+            if href.startswith("http"):
+                links.add(href.split("?")[0])
+            elif href.startswith("/"):
+                links.add((origin + href).split("?")[0])
+        return sorted(links)

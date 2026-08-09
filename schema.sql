@@ -190,6 +190,7 @@ CREATE TABLE IF NOT EXISTS discovery_sources (
     category_id     INTEGER NOT NULL REFERENCES categories(id) ON DELETE CASCADE,
     retailer_id     INTEGER NOT NULL REFERENCES retailers(id) ON DELETE CASCADE,
     listing_url     TEXT NOT NULL,   -- the category/listing page to scan
+    link_contains   TEXT NOT NULL DEFAULT '/en/p/',  -- substring that marks a product-detail link on this retailer's listing pages
     is_active       INTEGER NOT NULL DEFAULT 1,
     last_scanned_at TEXT DEFAULT '',
     created_at      TEXT NOT NULL

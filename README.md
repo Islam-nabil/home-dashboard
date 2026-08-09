@@ -271,12 +271,18 @@ The goal: check known prices *and* watch for brand-new products every day,
 without needing a paid host or bypassing any site's access policy. Two
 honest constraints shaped this:
 
-1. **2B's `robots.txt` explicitly disallows crawling its category/listing
-   pages, and separately names `anthropic-ai` as disallowed site-wide.**
-   That's the site directly opting out — this app has stuck to "never
-   bypass robots.txt" everywhere else, so 2B's *listing* pages are never
-   scanned. (Its individual product pages, for prices you're already
-   tracking, remain fine — that's a different, allowed access pattern.)
+1. **Some retailers' `robots.txt` explicitly opts out of AI crawling.**
+   2B, Amazon Egypt, Carrefour Egypt, and Cairo Sales Store all disallow
+   crawling their category/listing pages and/or name AI bots (anthropic-ai,
+   ClaudeBot, GPTBot, ...) as disallowed site-wide, verified 2026-08-09 by
+   reading each site's actual `robots.txt`. That's the site directly
+   opting out — this app has stuck to "never bypass robots.txt" everywhere
+   else, so those four retailers' *listing* pages are never scanned, and
+   (for Amazon/Carrefour/Cairo Sales specifically) no automated fetching of
+   any kind is attempted against them, not even single-product price
+   checks — they're tracked manually. (2B is the one exception: its
+   individual *product* pages are a different, allowed access pattern —
+   only its category/listing pages are off-limits.)
 2. **PythonAnywhere's free tier can't run a real browser** (no headless-
    Chromium support in practice, and a 100 CPU-second/day cap that a
    ~300MB browser download would blow through instantly) — and its free
@@ -287,19 +293,34 @@ So the actual architecture:
 
 | Piece | Where it runs | What it does |
 |---|---|---|
-| `providers/generic_html.py` (existing) | PythonAnywhere, on demand | Prices for retailers whose pages are server-rendered (2B) |
-| `providers/rendered_html.py` (new) | GitHub Actions only | Prices for retailers needing real JS (B.TECH) — raises a clean "unsupported" if Playwright isn't installed, so it never breaks the PythonAnywhere-hosted button |
-| `discovery.py` (new) | GitHub Actions only | Scans B.TECH category pages for products not yet tracked, one category page per configured `discovery_sources` row |
-| `.github/workflows/daily-scan.yml` | GitHub, free, once a day | Calls PythonAnywhere's own `/api/price-check/run` for 2B, then runs `scripts/run_scan.py` (with Playwright) for B.TECH pricing + discovery, then POSTs results to `/api/scan/ingest` |
+| `providers/generic_html.py` (existing) | PythonAnywhere, on demand | Prices for retailers whose pages are server-rendered (2B, Jumia, Noon, Zanussi, RadioShack) |
+| `providers/rendered_html.py` (new) | GitHub Actions only | Prices for retailers needing real JS (B.TECH, Raya Shop) — raises a clean "unsupported" if Playwright isn't installed, so it never breaks the PythonAnywhere-hosted button |
+| `discovery.py` (new) | GitHub Actions only (though static-retailer sources inside it use a plain fetch, no browser) | Scans category pages for products not yet tracked, one category page per configured `discovery_sources` row |
+| `.github/workflows/daily-scan.yml` | GitHub, free, once a day | Calls PythonAnywhere's own `/api/price-check/run` for every static retailer, then runs `scripts/run_scan.py` (with Playwright) for JS-rendered pricing + all discovery, then POSTs results to `/api/scan/ingest` |
 | "New Finds" page (`/new-finds`) | The live site | Every discovered product lands here first — Approve or Dismiss, nothing is ever added to your comparisons automatically |
 
-**Coverage today:** B.TECH discovery is wired up for 5 of the app's 8
-categories (Refrigerator, Cooker, Air Conditioner, Washing Machine, TV) —
-their category-page URLs were live-verified. Water Heater/Microwave/Air
-Fryer aren't in `seed.DISCOVERY_SOURCES` yet because their B.TECH category
-URL wasn't found in the time spent looking; add a row (verify the URL
-resolves and contains `/en/p/` links first) to extend coverage. 2B and
-every other retailer stay price-check-only, by design (see above).
+**Coverage today**, verified 2026-08-09 by reading each site's real
+`robots.txt` and a real product page (see `providers/retailers.py` for the
+full finding per retailer):
+
+| Retailer | Price checks | Discovery (New Finds) | Why |
+|---|---|---|---|
+| B.TECH | ✅ (JS-rendered) | ✅ 5/8 categories | robots.txt allows both; ClaudeBot not blocked |
+| 2B Egypt | ✅ (static) | ❌ never | robots.txt disallows crawling listing pages + names anthropic-ai |
+| Jumia Egypt | ✅ (static) | ✅ Refrigerator only so far | robots.txt explicitly grants ClaudeBot/anthropic-ai `Allow: /` |
+| Noon Egypt | ✅ (static) | ✅ Refrigerator only so far | robots.txt explicitly grants ClaudeBot `Allow: /` |
+| Zanussi Egypt (official) | ✅ (static) | ✅ Refrigerator only so far | no robots.txt file exists at all — nothing restricted |
+| Raya Shop | ✅ (JS-rendered) | ❌ (no reliable product-link pattern found) | no AI-bot rules, but category pages don't have a clean marker to filter on |
+| RadioShack Egypt | ✅ (static) | ❌ (large-appliance catalog coverage unconfirmed) | no AI-bot rules, works technically, just not wired to a category yet |
+| Amazon Egypt | ❌ manual only | ❌ never | robots.txt disallows ClaudeBot (×2), Claude-User, Claude-SearchBot, Claude-Web, GPTBot by name |
+| Carrefour Egypt | ❌ manual only | ❌ never | robots.txt disallows GPTBot site-wide + blocks nearly all content pages for everyone |
+| Cairo Sales Store | ❌ manual only | ❌ never | robots.txt (Cloudflare-managed) disallows ClaudeBot by name |
+
+Discovery categories can be extended the same way the existing ones were
+found: visit the retailer's category page for that category in a real
+browser, confirm it lists product-detail links and isn't blocked by
+robots.txt, then add a row to `seed.DISCOVERY_SOURCES` with the right
+`link_contains` marker for that site's URL pattern.
 
 **One-time setup to turn the daily scan on:**
 1. On GitHub: your repo → Settings → Secrets and variables → Actions → New
@@ -326,13 +347,22 @@ DASHBOARD_BASE_URL=https://islahmed.pythonanywhere.com \
 from your own machine or let the GitHub Actions job do it.)
 
 **Adding another retailer:** create a class in `providers/retailers.py`
-subclassing `GenericHtmlProvider` or `RenderedHtmlProvider` (whichever
-matches how that site actually serves price — verify this against a real
-page before assuming), register it in `providers/registry.py`'s
-`_PROVIDERS` dict, and add a row via `POST /api/retailers` with the
-matching `provider_key`. Before adding a `discovery_sources` row for it,
-read its `robots.txt` first — if it disallows category/listing crawling or
-names AI bots specifically, leave `allow_category_scan` off, same as 2B.
+subclassing `GenericHtmlProvider`, `RenderedHtmlProvider`, or
+`ManualProvider` (whichever matches how that site actually serves price —
+verify this against a real page before assuming; don't assume JS-rendered
+just because a site "feels" like a SPA — Noon looked like one but ships
+static JSON-LD), register it in `providers/registry.py`'s `_PROVIDERS`
+dict (a `provider_key` that isn't registered there silently falls back to
+manual entry — this is deliberate, not a bug, see the comment in that
+file), and add a row via `POST /api/retailers` with the matching
+`provider_key`. Before adding a `discovery_sources` row for it, read its
+`robots.txt` first — if it disallows category/listing crawling or names AI
+bots specifically (anthropic-ai, ClaudeBot, GPTBot, Claude-User, etc. —
+check the *exact* raw text, not just a summary), use `ManualProvider`
+instead and leave `allow_category_scan` off, same as Amazon/Carrefour/
+Cairo Sales Store. When adding a `discovery_sources` row, also set
+`link_contains` to whatever substring reliably marks a product-detail link
+on that retailer's category pages (verify against real hrefs first).
 
 ---
 
@@ -570,16 +600,18 @@ itself has no login screen.
 
 ## 16. Current limitations
 
-- **2B and B.TECH price fetching are verified live** (section 8); every
-  other retailer (Amazon Egypt, Noon, Carrefour, Raya, RadioShack, Cairo
-  Sales) is still "implemented, unverified" — same caveat as before,
-  budget time to check each one's actual current markup before relying on
-  it, and check its `robots.txt` before ever adding a `discovery_sources`
-  row for it.
-- **New-product discovery only covers B.TECH, and only 5 of 8 categories**
-  (section 8.1) — 2B is excluded on principle (its robots.txt disallows
-  it), and Water Heater/Microwave/Air Fryer don't have a verified B.TECH
-  category URL yet.
+- **B.TECH, 2B, Jumia, Noon, Zanussi, Raya, and RadioShack price fetching
+  are all verified live** (section 8.1). Amazon Egypt, Carrefour Egypt,
+  and Cairo Sales Store are deliberately never fetched automatically —
+  their robots.txt explicitly names AI bots as disallowed — so they stay
+  manual-only by design, not by omission.
+- **New-product discovery covers B.TECH (5/8 categories), Jumia, Noon, and
+  Zanussi (Refrigerator only so far)** (section 8.1) — 2B/Amazon/Carrefour/
+  Cairo Sales are excluded on principle (robots.txt disallows it); Raya
+  Shop and RadioShack Egypt are price-check-eligible but have no discovery
+  source yet (no reliable product-link pattern for Raya; unconfirmed
+  large-appliance catalog coverage for RadioShack); the remaining B.TECH/
+  Jumia/Noon/Zanussi categories don't have a verified category URL yet.
 - **The daily scan needs the GitHub Actions secrets set up once** (section
   8.1) — until then, prices/discovery only update when someone clicks the
   manual buttons.

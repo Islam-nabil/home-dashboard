@@ -74,6 +74,7 @@ def init_db():
 _COLUMN_MIGRATIONS = [
     ("retailers", "render_mode", "TEXT NOT NULL DEFAULT 'static'"),
     ("retailers", "allow_category_scan", "INTEGER NOT NULL DEFAULT 0"),
+    ("discovery_sources", "link_contains", "TEXT NOT NULL DEFAULT '/en/p/'"),
 ]
 
 

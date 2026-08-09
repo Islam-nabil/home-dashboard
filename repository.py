@@ -85,9 +85,11 @@ def get_or_create_retailer(key, name=None, base_url="", provider_key="manual", c
                             render_mode=None, allow_category_scan=None):
     row = db.query_one("SELECT * FROM retailers WHERE key=?", (key,))
     if row:
-        # Flip render_mode/allow_category_scan on an already-existing retailer
-        # if explicitly passed — this is how re-running seed.py after a
-        # verified finding (e.g. "B.TECH needs JS rendering") updates a
+        # Flip render_mode/allow_category_scan/provider_key/notes on an
+        # already-existing retailer if explicitly passed and different —
+        # this is how re-running seed.py after a verified finding (e.g.
+        # "B.TECH needs JS rendering", or "Jumia now has its own verified
+        # provider instead of the unregistered generic_html key") updates a
         # retailer that was created by an older run of this app, without
         # needing a one-off SQL migration for every such finding.
         updates = {}
@@ -95,6 +97,12 @@ def get_or_create_retailer(key, name=None, base_url="", provider_key="manual", c
             updates["render_mode"] = render_mode
         if allow_category_scan is not None and row["allow_category_scan"] != (1 if allow_category_scan else 0):
             updates["allow_category_scan"] = 1 if allow_category_scan else 0
+        if provider_key and row["provider_key"] != provider_key:
+            updates["provider_key"] = provider_key
+        if notes and row["notes"] != notes:
+            updates["notes"] = notes
+        if credibility_score and row["credibility_score"] != credibility_score:
+            updates["credibility_score"] = credibility_score
         if updates:
             db.update("retailers", row["id"], updates)
             row = db.query_one("SELECT * FROM retailers WHERE id=?", (row["id"],))
@@ -510,7 +518,8 @@ def list_scan_price_targets():
 
 def list_discovery_sources():
     sql = """
-        SELECT ds.*, c.key AS category_key, r.key AS retailer_key
+        SELECT ds.*, c.key AS category_key, r.key AS retailer_key,
+               r.render_mode AS retailer_render_mode
         FROM discovery_sources ds
         JOIN categories c ON c.id = ds.category_id
         JOIN retailers r ON r.id = ds.retailer_id

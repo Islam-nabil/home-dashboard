@@ -94,27 +94,51 @@ RETAILERS = [
          notes=("Major Egyptian electronics chain. Verified 2026-08-09: price only appears after JS runs "
                 "(needs the daily GitHub Actions scan, not PythonAnywhere) but robots.txt allows crawling "
                 "both product and category pages -> also the one retailer 'New Finds' discovery scans.")),
-    dict(key="jumia_eg", name="Jumia Egypt", base_url="https://www.jumia.com.eg", provider_key="generic_html",
-         credibility_score=75, notes="Large marketplace; third-party sellers vary in reliability."),
-    dict(key="zanussi_eg", name="Zanussi Egypt (official)", base_url="https://www.zanussi.com.eg", provider_key="generic_html",
-         credibility_score=85, notes="Official brand store."),
+    dict(key="jumia_eg", name="Jumia Egypt", base_url="https://www.jumia.com.eg", provider_key="jumia_eg",
+         credibility_score=75, render_mode="static", allow_category_scan=True,
+         notes=("Verified 2026-08-09: full schema.org Product/Offer JSON-LD ships in the raw HTML -> plain "
+                "fetch works. robots.txt explicitly grants ClaudeBot/anthropic-ai 'Allow: /'. Plain category "
+                "pages are eligible for discovery; large marketplace, third-party sellers vary in reliability.")),
+    dict(key="zanussi_eg", name="Zanussi Egypt (official)", base_url="https://www.zanussi.com.eg", provider_key="zanussi_eg",
+         credibility_score=85, render_mode="static", allow_category_scan=True,
+         notes=("Verified 2026-08-09: price ships in the raw HTML (product:price:amount meta tag, same as "
+                "2B) -> plain fetch works. No robots.txt file exists at this domain at all - no restriction "
+                "stated. Official single-brand store.")),
     dict(key="amazon_eg", name="Amazon Egypt", base_url="https://www.amazon.eg", provider_key="amazon_eg",
-         credibility_score=85, notes="Often blocks simple automated fetches; expect manual updates."),
+         credibility_score=85,
+         notes=("BLOCKED (verified 2026-08-09): robots.txt disallows ClaudeBot (twice), Claude-User, "
+                "Claude-SearchBot, Claude-Web and GPTBot by name with 'Disallow: /'. Tracked manually only - "
+                "this is an explicit AI-bot opt-out, respected the same way 2B's is.")),
     dict(key="noon_eg", name="Noon Egypt", base_url="https://www.noon.com/egypt-en", provider_key="noon_eg",
-         credibility_score=78, notes="JS-heavy SPA; automated extraction frequently fails."),
+         credibility_score=78, render_mode="static", allow_category_scan=True,
+         notes=("Verified 2026-08-09: full schema.org Product/Offer JSON-LD ships in the raw HTML -> plain "
+                "fetch works (corrects an earlier assumption that Noon is an unscrapable JS SPA). robots.txt "
+                "explicitly grants ClaudeBot 'Allow: /'.")),
     dict(key="carrefour_eg", name="Carrefour Egypt", base_url="https://www.carrefouregypt.com", provider_key="carrefour_eg",
-         credibility_score=80, notes=""),
+         credibility_score=80,
+         notes=("BLOCKED (verified 2026-08-09): robots.txt disallows GPTBot site-wide with 'Disallow: /', "
+                "and separately disallows *.html/*.aspx for every crawler - covering nearly all real content "
+                "pages on this legacy ASP-based site. Tracked manually only.")),
     dict(key="twob", name="2B Egypt", base_url="https://2b.com.eg", provider_key="twob", credibility_score=78,
          render_mode="static",
          notes=("Verified 2026-08-09: price ships in the raw HTML, plain fetch works fine for products you "
                 "track. Category/listing pages are deliberately NEVER scanned for new products - 2B's "
                 "robots.txt explicitly disallows crawling them and separately names AI bots as disallowed "
                 "site-wide. allow_category_scan stays off on principle, not because it doesn't work.")),
-    dict(key="raya", name="Raya Shop", base_url="https://www.rayashop.com", provider_key="raya", credibility_score=76, notes=""),
-    dict(key="radioshack_eg", name="RadioShack Egypt", base_url="https://www.radioshack.com.eg", provider_key="generic_html",
-         credibility_score=74, notes="Established Egyptian electronics chain."),
-    dict(key="cairosales_eg", name="Cairo Sales Store", base_url="https://cairosales.com", provider_key="generic_html",
-         credibility_score=70, notes="Cairo-based electronics retailer."),
+    dict(key="raya", name="Raya Shop", base_url="https://www.rayashop.com", provider_key="raya", credibility_score=76,
+         render_mode="js",
+         notes=("Verified 2026-08-09: raw HTML has no price at all; only appears after JavaScript runs -> "
+                "needs a real browser (Playwright), same as B.TECH. No AI-bot-specific robots.txt rules, but "
+                "no reliable product-link pattern was found for discovery - individually-added listings only.")),
+    dict(key="radioshack_eg", name="RadioShack Egypt", base_url="https://www.radioshack.com.eg", provider_key="radioshack_eg",
+         credibility_score=74, render_mode="static",
+         notes=("Verified 2026-08-09: price ships in a raw-HTML '.price' div -> plain fetch works. No "
+                "AI-bot-specific robots.txt rules. Catalog leans electronics/accessories - large-appliance "
+                "selection unconfirmed, so no discovery source added.")),
+    dict(key="cairosales_eg", name="Cairo Sales Store", base_url="https://cairosales.com", provider_key="cairosales_eg",
+         credibility_score=70,
+         notes=("BLOCKED (verified 2026-08-09): Cloudflare-managed robots.txt disallows ClaudeBot by name "
+                "with 'Disallow: /'. Tracked manually only.")),
     dict(key="other", name="Other / Unlisted Retailer", base_url="", provider_key="manual",
          credibility_score=55, notes="Unverified retailer — treat listings here with extra caution."),
 ]
@@ -149,9 +173,12 @@ PRODUCTS = {
              reliability="Toshiba fridges are widely serviced in Egypt via Olympic Group; consistently well-rated by buyers.",
              egypt_service="Wide service network via Olympic Group.",
              score=_score(80, 85, 78, 65, 68, 55), target=25500),
-        dict(brand="Zanussi", model="ZRT48202SA", full_name="Zanussi 2-Door No-Frost Refrigerator 478L Silver",
-             capacity="478L", warranty_years=5, retailer="zanussi_eg",
-             url="https://www.zanussi.com.eg/en-eg/appliances/fridge-freezers/zrt48202sa/",
+        dict(brand="Zanussi", model="ZRT45200SA", full_name="Zanussi 2-Door No-Frost Refrigerator 442L Silver",
+             capacity="442L", warranty_years=5, retailer="zanussi_eg",
+             # URL/model corrected 2026-08-09: the old zrt48202sa URL now 404s (site
+             # renumbered/replaced the model). Re-verified live on zanussi.com.eg -
+             # ZRT45200SA at 40,210 EGP is the current real listing for this size class.
+             url="https://www.zanussi.com.eg/ar/cooling/fridge-and-freezers/fridges/fridge-zanussi-2-door-nofrost-442l-silver.html",
              price=40210, is_demo=False,
              specs={"Type": "No-Frost, top-freezer", "Extras": "0° ChillFresh box, Space+ drawer"},
              features=["No-frost", "0° ChillFresh box", "Space+ drawer"],
@@ -850,24 +877,44 @@ def seed():
 
 
 # Category listing pages the daily "New Finds" scan actually looks at.
-# Every URL here was live-verified (2026-08-09, via a real rendered browser
-# session — see discovery.py's module docstring for why a plain fetch can't
-# do this) to be a real B.TECH category page containing product-detail
-# links, not guessed from a URL pattern. Only 5 of the app's 8 categories
-# are covered — water_heater/microwave/air_fryer weren't findable in
-# B.TECH's nav in the time spent looking; add them here once someone finds
-# and verifies the real category URL, same way these five were found.
+# Every URL here was live-verified (2026-08-09, via a real browser session —
+# see discovery.py and providers/retailers.py for why a plain fetch alone
+# can't confirm this for JS-rendered retailers) to be a real category page
+# containing product-detail links, not guessed from a URL pattern.
+# `link_contains` is the substring that marks a product-detail link on that
+# retailer's listing pages (different per retailer — e.g. B.TECH uses
+# '/en/p/', Jumia and Zanussi use '.html', Noon uses '/p/').
+#
+# B.TECH: only 5 of the app's 8 categories are covered — water_heater/
+# microwave/air_fryer weren't findable in B.TECH's nav in the time spent
+# looking; add them here once someone finds and verifies the real category
+# URL, same way these five were found. Jumia/Noon/Zanussi are currently
+# refrigerator-only for the same reason — add more categories the same way.
 DISCOVERY_SOURCES = [
     dict(category_key="refrigerator", retailer_key="btech",
-         listing_url="https://btech.com/en/c/large-home-appliances/refrigerators"),
+         listing_url="https://btech.com/en/c/large-home-appliances/refrigerators",
+         link_contains="/en/p/"),
     dict(category_key="cooker", retailer_key="btech",
-         listing_url="https://btech.com/en/c/large-home-appliances/cookers"),
+         listing_url="https://btech.com/en/c/large-home-appliances/cookers",
+         link_contains="/en/p/"),
     dict(category_key="air_conditioner", retailer_key="btech",
-         listing_url="https://btech.com/en/c/large-home-appliances/air-conditioners/split-system"),
+         listing_url="https://btech.com/en/c/large-home-appliances/air-conditioners/split-system",
+         link_contains="/en/p/"),
     dict(category_key="washing_machine", retailer_key="btech",
-         listing_url="https://btech.com/en/c/large-home-appliances/washing-machines-dryers/front-load-washing-machines"),
+         listing_url="https://btech.com/en/c/large-home-appliances/washing-machines-dryers/front-load-washing-machines",
+         link_contains="/en/p/"),
     dict(category_key="tv", retailer_key="btech",
-         listing_url="https://btech.com/en/c/tvs-projectors"),
+         listing_url="https://btech.com/en/c/tvs-projectors",
+         link_contains="/en/p/"),
+    dict(category_key="refrigerator", retailer_key="jumia_eg",
+         listing_url="https://www.jumia.com.eg/appliances-fridges-freezers/",
+         link_contains=".html"),
+    dict(category_key="refrigerator", retailer_key="noon_eg",
+         listing_url="https://www.noon.com/egypt-en/appliances/large-appliances/refrigerators-and-freezers/",
+         link_contains="/p/"),
+    dict(category_key="refrigerator", retailer_key="zanussi_eg",
+         listing_url="https://www.zanussi.com.eg/ar/cooling/fridge-and-freezers/fridge-freezers.html",
+         link_contains=".html"),
 ]
 
 
@@ -888,9 +935,11 @@ def seed_discovery_sources(retailer_ids=None, category_ids=None):
             continue
         db.insert("discovery_sources", {
             "category_id": cat_id, "retailer_id": ret_id, "listing_url": src["listing_url"],
+            "link_contains": src.get("link_contains", "/en/p/"),
             "is_active": 1, "last_scanned_at": "", "created_at": db.now_iso(),
         })
-    print(f"Discovery sources: {len(DISCOVERY_SOURCES)} configured (B.TECH only - see discovery.py).")
+    print(f"Discovery sources: {len(DISCOVERY_SOURCES)} configured across "
+          f"{len({s['retailer_key'] for s in DISCOVERY_SOURCES})} retailers (see discovery.py).")
 
 
 if __name__ == "__main__":

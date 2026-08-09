@@ -8,11 +8,16 @@ name: Daily price + new-product scan
 #
 # Two independent jobs:
 #   1. static-price-check - calls the site's own existing price-check
-#      endpoint (works for 2B and anything else whose price is in the raw
-#      HTML; PythonAnywhere itself does the fetching, no browser needed).
+#      endpoint (works for every retailer whose price ships in the raw
+#      HTML - 2B, Jumia, Noon, Zanussi, RadioShack - PythonAnywhere itself
+#      does the fetching, no browser needed).
 #   2. rendered-scan - runs in THIS runner (which has a full VM), installs
-#      Playwright, and handles B.TECH (needs real JS rendering) plus new-
-#      product discovery, then reports results back to the live site.
+#      Playwright, and handles B.TECH + Raya (both need real JS rendering)
+#      plus new-product discovery for every discovery-eligible retailer
+#      (B.TECH, Jumia, Noon, Zanussi - static ones just use a plain fetch
+#      even inside this job, no browser overhead for those), then reports
+#      results back to the live site. See providers/retailers.py for which
+#      retailer is in which category and why.
 #
 # One-time setup this repo needs (see README "Always-updated scanning"):
 #   Settings -> Secrets and variables -> Actions -> New repository secret

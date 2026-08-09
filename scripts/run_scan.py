@@ -50,6 +50,7 @@ sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 import requests
 
 from providers.rendered_html import RenderedHtmlProvider
+from providers.generic_html import GenericHtmlProvider
 from providers.base import ProviderError, ProviderUnsupported
 
 MAX_NEW_PER_SOURCE = 15
@@ -100,13 +101,19 @@ def run_price_targets(price_targets):
 
 
 def run_discovery_targets(discovery_targets):
-    provider = RenderedHtmlProvider()
     candidates = []
     for target in discovery_targets:
+        # Only B.TECH/Raya-style JS-rendered retailers need Playwright here;
+        # Jumia/Noon/Zanussi-style static retailers ship their product
+        # links in the raw HTML, so a plain fetch already sees them -
+        # picking the right provider per target avoids spinning up a
+        # browser when a plain GET would do.
+        provider = RenderedHtmlProvider() if target.get("retailer_render_mode") == "js" else GenericHtmlProvider()
         known = set(target.get("known_urls", []))
         print(f"Scanning {target['category_key']} on {target['retailer_key']}: {target['listing_url']}")
         try:
-            links = provider.collect_listing_links(target["listing_url"], link_contains="/en/p/")
+            link_contains = target.get("link_contains") or "/en/p/"
+            links = provider.collect_listing_links(target["listing_url"], link_contains=link_contains)
         except (ProviderError, ProviderUnsupported) as e:
             print(f"  [failed] {e}")
             continue

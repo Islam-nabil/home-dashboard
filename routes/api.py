@@ -379,6 +379,7 @@ def api_scan_targets():
         discovery_targets.append({
             "source_id": src["id"], "category_key": src["category_key"], "retailer_key": src["retailer_key"],
             "listing_url": src["listing_url"], "known_urls": sorted(known),
+            "link_contains": src["link_contains"], "retailer_render_mode": src["retailer_render_mode"],
         })
     return jsonify({"price_targets": price_targets, "discovery_targets": discovery_targets})
 
