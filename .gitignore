@@ -1,0 +1,9 @@
+data/*.db
+data/*.db-journal
+.env
+__pycache__/
+*.pyc
+.DS_Store
+venv/
+.venv/
+.qodo/

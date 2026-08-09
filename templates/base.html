@@ -1,0 +1,67 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>{% block title %}Home Setup Dashboard{% endblock %}</title>
+<link rel="stylesheet" href="{{ url_for('static', filename='css/style.css') }}">
+</head>
+<body>
+<div class="app-shell">
+  <aside class="sidebar">
+    <div class="brand">
+      <span class="logo">🏠</span>
+      <div>
+        <div class="name">Home Setup</div>
+        <div class="sub">Purchase Intelligence</div>
+      </div>
+    </div>
+    <nav>
+      <a class="nav-link {{ 'active' if page=='dashboard' }}" href="{{ url_for('pages.dashboard') }}">📊 Dashboard</a>
+      <a class="nav-link {{ 'active' if page=='wishlist' }}" href="{{ url_for('pages.wishlist_page') }}">➕ Wishlist</a>
+      <a class="nav-link {{ 'active' if page=='my_home' }}" href="{{ url_for('pages.my_home_page') }}">🏡 My Home</a>
+      <a class="nav-link {{ 'active' if page=='alerts' }}" href="{{ url_for('pages.alerts_page') }}">🔔 Alerts</a>
+      <a class="nav-link {{ 'active' if page=='settings' }}" href="{{ url_for('pages.settings_page') }}">⚙️ Settings</a>
+    </nav>
+    <div class="nav-section">
+      <div class="label">Categories</div>
+      {% for cat in (nav_categories or []) %}
+      <a class="nav-link {{ 'active' if page=='category' and category and category.id==cat.id }}" href="{{ url_for('pages.category_page', key=cat.key) }}">
+        <span class="dot p{{ cat.priority_level }}-dot">●</span>
+        <span>{{ cat.name }}</span>
+      </a>
+      {% endfor %}
+    </div>
+  </aside>
+
+  <div class="main">
+    <div class="content">
+      {% block content %}{% endblock %}
+    </div>
+  </div>
+</div>
+
+<button class="assistant-fab" id="assistant-fab" title="Ask the purchasing assistant">💬</button>
+<div class="assistant-panel" id="assistant-panel">
+  <div class="assistant-head">
+    <span>Purchasing Assistant</span>
+    <span class="muted-2" id="assistant-close" style="cursor:pointer;">✕</span>
+  </div>
+  <div class="assistant-messages" id="assistant-messages">
+    <div class="assistant-msg bot">Ask me things like "What should I buy next?" or "Is this refrigerator a good deal?"</div>
+  </div>
+  <div class="assistant-suggestions">
+    <button type="button" class="btn-secondary suggestion">What should I buy next?</button>
+    <button type="button" class="btn-secondary suggestion">Any deals worth acting on today?</button>
+    <button type="button" class="btn-secondary suggestion">Which Priority 1 purchase should I make first?</button>
+  </div>
+  <div class="assistant-input-row">
+    <input type="text" id="assistant-input" placeholder="Ask a question...">
+    <button class="btn-primary" id="assistant-send">Send</button>
+  </div>
+</div>
+
+<script src="{{ url_for('static', filename='js/app.js') }}"></script>
+{% block scripts %}{% endblock %}
+</body>
+</html>

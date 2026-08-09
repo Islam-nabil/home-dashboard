@@ -1,0 +1,37 @@
+{% extends "base.html" %}
+{% block title %}My Home — Home Setup Dashboard{% endblock %}
+{% block content %}
+
+<div class="section-head"><h1 style="font-size:20px;">My Home — Purchased Items</h1></div>
+<p class="muted" style="font-size:12.5px;">{{ purchases|length }} items purchased · {{ '{:,.0f} EGP'.format(budget.spent_egp) }} spent of {{ '{:,.0f} EGP'.format(budget.total_budget_egp) }}</p>
+
+{% if purchases %}
+<div class="table-wrap" style="margin-top:16px;">
+  <table class="data-table" data-sortable>
+    <thead><tr>
+      <th data-sort-key="name">Product</th>
+      <th data-sort-key="price" data-sort-type="number" class="num">Purchase Price</th>
+      <th data-sort-key="retailer">Retailer</th>
+      <th data-sort-key="date">Purchase Date</th>
+      <th data-sort-key="warranty" data-sort-type="number" class="num">Warranty</th>
+      <th data-sort-key="invoice">Invoice #</th>
+    </tr></thead>
+    <tbody>
+      {% for pu in purchases %}
+      <tr>
+        <td data-cell="name" data-value="{{ pu.full_name }}"><a href="/products/{{ pu.product_id }}">{{ pu.full_name }}</a></td>
+        <td data-cell="price" data-value="{{ pu.purchase_price_egp }}" class="num">{{ '{:,.0f}'.format(pu.purchase_price_egp) }}</td>
+        <td data-cell="retailer" data-value="{{ pu.retailer_name or '' }}">{{ pu.retailer_name or '—' }}</td>
+        <td data-cell="date" data-value="{{ pu.purchase_date }}">{{ pu.purchase_date }}</td>
+        <td data-cell="warranty" data-value="{{ pu.warranty_period_months or 0 }}" class="num">{{ pu.warranty_period_months }} mo</td>
+        <td data-cell="invoice" data-value="{{ pu.invoice_number or '' }}">{{ pu.invoice_number or '—' }}</td>
+      </tr>
+      {% endfor %}
+    </tbody>
+  </table>
+</div>
+{% else %}
+<div class="empty-state" style="margin-top:16px;">Nothing purchased yet. Mark an item as purchased from its product page once you buy it.</div>
+{% endif %}
+
+{% endblock %}

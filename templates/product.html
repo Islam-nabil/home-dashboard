@@ -1,0 +1,271 @@
+{% extends "base.html" %}
+{% import "_macros.html" as m %}
+{% block title %}{{ product.full_name }} — Home Setup Dashboard{% endblock %}
+{% block content %}
+
+<div class="section-head">
+  <div>
+    <div class="muted" style="font-size:12px;"><a href="{{ url_for('pages.category_page', key=product.category.key) }}">{{ product.category.name }}</a> / {{ product.brand }}</div>
+    <h1 style="font-size:20px;">{{ product.full_name }}
+      {% if product.is_demo_data %}<span class="badge-demo">DEMO / ESTIMATED PRICE</span>{% endif %}
+    </h1>
+    <p class="muted" style="font-size:12.5px;">{{ product.model }} {% if product.capacity %}· {{ product.capacity }}{% endif %} · Status: {{ product.purchase_status.replace('_',' ')|title }}</p>
+  </div>
+  <div style="display:flex; gap:8px; flex-wrap:wrap;">
+    <select id="status-select">
+      {% for s in ['researching','shortlisted','watching','ready_to_buy','purchased','rejected'] %}
+      <option value="{{ s }}" {{ 'selected' if product.purchase_status==s }}>{{ s.replace('_',' ')|title }}</option>
+      {% endfor %}
+    </select>
+    <button class="btn-secondary" onclick="runPriceCheck()">🔄 Refresh price</button>
+    <button class="btn-primary" onclick="openModal('purchase-modal')">Mark as purchased</button>
+  </div>
+</div>
+
+<div class="card-grid" style="grid-template-columns: 2fr 1fr; margin-top:16px;">
+  <div class="stack-16">
+
+    <div class="card">
+      <div class="flex-between">
+        <div>
+          <div class="muted" style="font-size:12px;">Current Price</div>
+          <div style="font-size:26px; font-weight:750;">{{ '{:,.0f} EGP'.format(product.pricing.current_price) if product.pricing.current_price else 'No price yet' }}</div>
+          <div class="muted" style="font-size:12px;">{{ product.pricing.best_retailer or 'No retailer' }} · last checked {{ product.pricing.last_checked_at or '—' }}</div>
+        </div>
+        {{ m.deal_badge(product.deal_score) }}
+      </div>
+      <hr class="divider">
+      <div class="budget-grid" style="grid-template-columns: repeat(4, 1fr);">
+        <div class="budget-stat"><div class="label">Previous Price</div><div class="value" style="font-size:15px;">{{ '{:,.0f}'.format(product.pricing.previous_price) if product.pricing.previous_price else '—' }}</div></div>
+        <div class="budget-stat"><div class="label">Historical Low</div><div class="value" style="font-size:15px;">{{ '{:,.0f}'.format(product.pricing.historical_low) if product.pricing.historical_low else '—' }}</div></div>
+        <div class="budget-stat"><div class="label">Historical High</div><div class="value" style="font-size:15px;">{{ '{:,.0f}'.format(product.pricing.historical_high) if product.pricing.historical_high else '—' }}</div></div>
+        <div class="budget-stat"><div class="label">Average</div><div class="value" style="font-size:15px;">{{ '{:,.0f}'.format(product.pricing.historical_avg) if product.pricing.historical_avg else '—' }}</div></div>
+      </div>
+    </div>
+
+    <div class="card">
+      <div class="flex-between">
+        <h3>Price History</h3>
+        <div style="display:flex; gap:4px;">
+          <button class="btn-ghost btn-sm range-btn" data-range="7">7d</button>
+          <button class="btn-ghost btn-sm range-btn" data-range="30">30d</button>
+          <button class="btn-ghost btn-sm range-btn" data-range="90">90d</button>
+          <button class="btn-ghost btn-sm range-btn" data-range="all">All</button>
+        </div>
+      </div>
+      <canvas id="price-chart" width="700" height="220" class="sparkline"></canvas>
+      <p class="muted" style="font-size:11.5px; margin-top:6px;">— price · <span style="color:#f5b942;">┈</span> target · <span style="color:#33d6a6;">┈</span> historical low</p>
+    </div>
+
+    <div class="card">
+      <h3>Why this Deal Score?</h3>
+      {% for f in product.deal_score.factors %}
+      <div class="score-bar-row">
+        <div class="label">{{ f.label }}</div>
+        <div class="score-bar-track"><div class="score-bar-fill" style="width: {{ f.score }}%;"></div></div>
+        <div class="score-bar-val">{{ f.score }}</div>
+      </div>
+      {% endfor %}
+      <hr class="divider">
+      <ul style="margin:0; padding-left:18px; font-size:12.5px; color:var(--muted);">
+        {% for e in product.deal_score.explanation %}<li>{{ e }}</li>{% endfor %}
+      </ul>
+    </div>
+
+    <div class="card">
+      <div class="flex-between"><h3>Recommendation</h3>{{ m.decision_badge(recommendation) }}</div>
+      <p class="rec-explain" style="font-size:13px;">{{ recommendation.explanation }}</p>
+    </div>
+
+    <div class="card">
+      <h3>Specs & Details</h3>
+      {% if product.specs %}
+      <div class="stack-8" style="margin-top:8px;">
+        {% for k, v in product.specs.items() %}<div style="display:flex; justify-content:space-between; font-size:12.5px;"><span class="muted">{{ k }}</span><span>{{ v }}</span></div>{% endfor %}
+      </div>
+      {% endif %}
+      <p style="margin-top:10px; font-size:12.5px;"><span class="muted">Warranty:</span> {{ product.warranty_years }} years</p>
+      {% if product.features %}<div style="margin-top:8px;">{% for f in product.features %}<span class="chip">{{ f }}</span>{% endfor %}</div>{% endif %}
+      <div class="pros-cons" style="margin-top:14px;">
+        <div><strong style="font-size:12.5px;">Pros</strong><ul>{% for pr in product.pros %}<li>{{ pr }}</li>{% endfor %}</ul></div>
+        <div><strong style="font-size:12.5px;">Cons</strong><ul>{% for c in product.cons %}<li>{{ c }}</li>{% endfor %}</ul></div>
+      </div>
+      {% if product.reliability_assessment %}<p style="margin-top:12px; font-size:12.5px;"><strong>Reliability:</strong> {{ product.reliability_assessment }}</p>{% endif %}
+      {% if product.egypt_service_assessment %}<p style="font-size:12.5px;"><strong>Egypt service/support:</strong> {{ product.egypt_service_assessment }}</p>{% endif %}
+    </div>
+
+    {% if product.score_detail and product.score_detail.dimensions %}
+    <div class="card">
+      <h3>Product Score Methodology</h3>
+      <p class="muted" style="font-size:12px;">Transparent weighted average — not a black box.</p>
+      {% for d in product.score_detail.dimensions %}
+      <div class="score-bar-row">
+        <div class="label">{{ d.label }} ({{ (d.weight_effective*100)|round(0) }}%)</div>
+        <div class="score-bar-track"><div class="score-bar-fill" style="width: {{ d.raw_score }}%; background: var(--purple);"></div></div>
+        <div class="score-bar-val">{{ d.raw_score }}</div>
+      </div>
+      {% endfor %}
+    </div>
+    {% endif %}
+
+  </div>
+
+  <div class="stack-16">
+    <div class="card">
+      <h3>Update Price</h3>
+      <form id="price-form" class="stack-8" style="margin-top:8px;">
+        <div class="field"><label>Retailer</label>
+          <select name="retailer_key" id="retailer-select">
+            {% for r in retailers %}<option value="{{ r.key }}">{{ r.name }}</option>{% endfor %}
+            <option value="__new__">+ New retailer...</option>
+          </select>
+        </div>
+        <div class="field" id="new-retailer-field" style="display:none;"><label>New retailer name</label><input name="retailer_name"></div>
+        <div class="field"><label>Price (EGP)</label><input type="number" step="0.01" name="price_egp" required></div>
+        <div class="field"><label>Availability</label>
+          <select name="availability"><option value="in_stock">In stock</option><option value="out_of_stock">Out of stock</option></select>
+        </div>
+        <div class="field"><label>Product URL (optional)</label><input name="url" placeholder="https://..."></div>
+        <button type="submit" class="btn-primary" style="width:100%;">Save price</button>
+      </form>
+    </div>
+
+    <div class="card">
+      <h3>Target Price</h3>
+      <form id="target-form" class="stack-8" style="margin-top:8px;">
+        <div class="field"><input type="number" name="target_buy_price_egp" value="{{ product.target_buy_price_egp or '' }}" placeholder="e.g. 27000"></div>
+        <button type="submit" class="btn-secondary" style="width:100%;">Update target</button>
+      </form>
+    </div>
+
+    <div class="card">
+      <h3>Listings ({{ product.listings|length }})</h3>
+      {% for l in product.listings %}
+      <div style="padding:8px 0; border-bottom:1px solid var(--border); font-size:12.5px;">
+        <div class="flex-between">
+          <strong>{{ l.retailer_name }}</strong>
+          <span class="chip">{{ l.match_confidence }}</span>
+        </div>
+        {% if l.url %}<a href="{{ l.url }}" target="_blank" rel="noopener" class="muted" style="font-size:11.5px; word-break:break-all;">{{ l.url }}</a>{% endif %}
+      </div>
+      {% else %}
+      <p class="muted" style="font-size:12.5px;">No listings tracked yet — add a price above.</p>
+      {% endfor %}
+    </div>
+
+    {% if product.sources %}
+    <div class="card">
+      <h3>Research Sources</h3>
+      {% for s in product.sources %}
+      <div style="padding:6px 0; font-size:12px;">
+        <div class="flex-between"><span>{{ s.retailer }}</span><span class="chip">{{ s.confidence }}</span></div>
+        <div class="muted-2">{{ s.retrieved_at }}</div>
+        {% if s.url %}<a href="{{ s.url }}" target="_blank" rel="noopener" class="muted" style="font-size:11px; word-break:break-all;">{{ s.url }}</a>{% endif %}
+      </div>
+      {% endfor %}
+    </div>
+    {% endif %}
+  </div>
+</div>
+
+<!-- Purchase modal -->
+<div class="modal-overlay" id="purchase-modal">
+  <div class="modal">
+    <span class="modal-close" onclick="closeModal('purchase-modal')">✕</span>
+    <h3>Mark {{ product.full_name }} as purchased</h3>
+    <form id="purchase-form" class="stack-8" style="margin-top:12px;">
+      <div class="field-row">
+        <div class="field"><label>Purchase price (EGP)</label><input type="number" name="purchase_price_egp" value="{{ product.pricing.current_price or '' }}" required></div>
+        <div class="field"><label>Purchase date</label><input type="date" name="purchase_date"></div>
+      </div>
+      <div class="field-row">
+        <div class="field"><label>Retailer</label>
+          <select name="retailer_key">{% for r in retailers %}<option value="{{ r.key }}" {{ 'selected' if r.key==product.pricing.best_retailer_key }}>{{ r.name }}</option>{% endfor %}</select>
+        </div>
+        <div class="field"><label>Warranty (months)</label><input type="number" name="warranty_period_months" value="{{ (product.warranty_years or 0)|int * 12 }}"></div>
+      </div>
+      <div class="field"><label>Invoice / order number</label><input name="invoice_number"></div>
+      <div class="field"><label>Notes</label><textarea name="notes" rows="2"></textarea></div>
+      <button type="submit" class="btn-primary" style="width:100%;">Confirm purchase</button>
+    </form>
+  </div>
+</div>
+
+{% endblock %}
+{% block scripts %}
+<script>
+const PRODUCT_ID = {{ product.id }};
+const TARGET = {{ product.target_buy_price_egp or 'null' }};
+const LOW = {{ product.pricing.historical_low or 'null' }};
+
+document.getElementById('retailer-select').addEventListener('change', function () {
+  document.getElementById('new-retailer-field').style.display = this.value === '__new__' ? 'block' : 'none';
+});
+
+document.getElementById('price-form').addEventListener('submit', async function (e) {
+  e.preventDefault();
+  const fd = new FormData(e.target);
+  let retailerKey = fd.get('retailer_key');
+  const body = {
+    retailer_key: retailerKey === '__new__' ? (fd.get('retailer_name') || 'other').toLowerCase().replace(/\s+/g, '_') : retailerKey,
+    retailer_name: retailerKey === '__new__' ? fd.get('retailer_name') : undefined,
+    price_egp: parseFloat(fd.get('price_egp')),
+    availability: fd.get('availability'),
+    url: fd.get('url') || undefined,
+  };
+  await apiFetch(`/api/products/${PRODUCT_ID}/price`, { method: 'POST', body: JSON.stringify(body) });
+  location.reload();
+});
+
+document.getElementById('target-form').addEventListener('submit', async function (e) {
+  e.preventDefault();
+  const fd = new FormData(e.target);
+  await apiFetch(`/api/products/${PRODUCT_ID}`, { method: 'PUT', body: JSON.stringify({
+    target_buy_price_egp: fd.get('target_buy_price_egp') ? parseFloat(fd.get('target_buy_price_egp')) : null,
+  })});
+  location.reload();
+});
+
+document.getElementById('purchase-form').addEventListener('submit', async function (e) {
+  e.preventDefault();
+  const fd = new FormData(e.target);
+  await apiFetch('/api/purchases', { method: 'POST', body: JSON.stringify({
+    product_id: PRODUCT_ID,
+    purchase_price_egp: parseFloat(fd.get('purchase_price_egp')),
+    purchase_date: fd.get('purchase_date') || undefined,
+    retailer_id: null,
+    retailer_key: fd.get('retailer_key'),
+    warranty_period_months: parseInt(fd.get('warranty_period_months')) || 0,
+    invoice_number: fd.get('invoice_number'),
+    notes: fd.get('notes'),
+  })});
+  window.location = '/my-home';
+});
+
+document.getElementById('status-select').addEventListener('change', async function () {
+  await apiFetch(`/api/products/${PRODUCT_ID}`, { method: 'PUT', body: JSON.stringify({ purchase_status: this.value }) });
+});
+
+async function runPriceCheck() {
+  const btn = event.target;
+  btn.disabled = true; btn.textContent = 'Checking...';
+  try {
+    await apiFetch('/api/price-check/run', { method: 'POST', body: JSON.stringify({ product_id: PRODUCT_ID }) });
+  } catch (e) {}
+  location.reload();
+}
+
+let allHistory = [];
+async function loadHistory(range) {
+  const days = range === 'all' ? null : range;
+  const url = `/api/products/${PRODUCT_ID}/price-history` + (days ? `?days=${days}` : '');
+  const rows = await apiFetch(url);
+  const points = rows.map(r => ({ x: r.observed_at, y: r.price_egp }));
+  drawLineChart(document.getElementById('price-chart'), points, { target: TARGET, low: LOW });
+}
+document.querySelectorAll('.range-btn').forEach(btn => {
+  btn.addEventListener('click', () => loadHistory(btn.dataset.range));
+});
+loadHistory(90);
+</script>
+{% endblock %}

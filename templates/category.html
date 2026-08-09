@@ -1,0 +1,148 @@
+{% extends "base.html" %}
+{% import "_macros.html" as m %}
+{% block title %}{{ category.name }} — Home Setup Dashboard{% endblock %}
+{% block content %}
+
+<div class="section-head">
+  <div>
+    <div style="display:flex; align-items:center; gap:10px;">
+      <h1 style="font-size:20px;">{{ category.name }}</h1>
+      {{ m.priority_badge(category.priority_level) }}
+    </div>
+    <p class="muted" style="font-size:12.5px;">Target budget: {{ '{:,.0f} EGP'.format(category.target_budget_egp) }} · {{ products|length }} shortlisted products</p>
+  </div>
+  <div style="display:flex; gap:8px;">
+    <button class="btn-secondary" onclick="openModal('edit-category-modal')">Edit category</button>
+    <button class="btn-primary" onclick="openModal('add-product-modal')">+ Add product</button>
+  </div>
+</div>
+
+{% if category.must_have_features %}
+<div class="section" style="margin-top:4px;">
+  <div class="muted" style="font-size:12px; margin-bottom:4px;">Must-have features</div>
+  {% for f in category.must_have_features %}<span class="chip">{{ f }}</span>{% endfor %}
+</div>
+{% endif %}
+{% if category.notes %}<p class="muted" style="font-size:12.5px;">{{ category.notes }}</p>{% endif %}
+
+<div class="section">
+  <div class="section-head"><h2>Comparison</h2></div>
+  {% if products %}
+  <div class="filter-bar">
+    <input type="text" placeholder="Filter products..." data-filter-target="#compare-table tbody tr">
+    <select data-select-filter-target="#compare-table tbody tr" data-select-filter-attr="data-status">
+      <option value="">All statuses</option>
+      <option value="researching">Researching</option>
+      <option value="shortlisted">Shortlisted</option>
+      <option value="watching">Watching</option>
+      <option value="ready_to_buy">Ready to Buy</option>
+      <option value="purchased">Purchased</option>
+      <option value="rejected">Rejected</option>
+    </select>
+  </div>
+  <div class="table-wrap">
+    <table class="data-table" id="compare-table" data-sortable>
+      <thead><tr>
+        <th data-sort-key="name">Product</th>
+        <th data-sort-key="price" data-sort-type="number" class="num">Current Price</th>
+        <th data-sort-key="store">Best Store</th>
+        <th data-sort-key="low" data-sort-type="number" class="num">Historical Low</th>
+        <th data-sort-key="target" data-sort-type="number" class="num">Target</th>
+        <th data-sort-key="score" data-sort-type="number" class="num">Product Score</th>
+        <th data-sort-key="deal" data-sort-type="number" class="num">Deal Score</th>
+        <th data-sort-key="status">Status</th>
+        <th>Recommendation</th>
+      </tr></thead>
+      <tbody>
+        {% for p in products %}
+        <tr data-status="{{ p.purchase_status }}" data-search-text="{{ p.full_name }} {{ p.brand }} {{ p.model }}" onclick="window.location='{{ url_for('pages.product_page', product_id=p.id) }}'" style="cursor:pointer;">
+          <td data-cell="name" data-value="{{ p.full_name }}">
+            {{ p.full_name }}
+            {% if p.is_demo_data %}<span class="badge-demo" title="Seeded with an estimated/unverified price — confirm before relying on it.">DEMO</span>{% endif %}
+          </td>
+          <td data-cell="price" data-value="{{ p.pricing.current_price or 0 }}" class="num">{{ '{:,.0f}'.format(p.pricing.current_price) if p.pricing.current_price else '—' }}</td>
+          <td data-cell="store" data-value="{{ p.pricing.best_retailer or '' }}">{{ p.pricing.best_retailer or '—' }}</td>
+          <td data-cell="low" data-value="{{ p.pricing.historical_low or 0 }}" class="num">{{ '{:,.0f}'.format(p.pricing.historical_low) if p.pricing.historical_low else '—' }}</td>
+          <td data-cell="target" data-value="{{ p.target_buy_price_egp or 0 }}" class="num">{{ '{:,.0f}'.format(p.target_buy_price_egp) if p.target_buy_price_egp else '—' }}</td>
+          <td data-cell="score" data-value="{{ p.computed_ai_research_score or 0 }}" class="num">{{ p.computed_ai_research_score if p.computed_ai_research_score is not none else '—' }}</td>
+          <td data-cell="deal" data-value="{{ p.deal_score.score or 0 }}" class="num">{{ m.deal_badge(p.deal_score) }}</td>
+          <td data-cell="status">{{ p.purchase_status.replace('_',' ')|title }}</td>
+          <td>{{ m.decision_badge(recommendations.get(p.id)) if recommendations.get(p.id) else '' }}</td>
+        </tr>
+        {% endfor %}
+      </tbody>
+    </table>
+  </div>
+  {% else %}
+  <div class="empty-state">No products shortlisted yet for {{ category.name }}. Click "+ Add product" to start tracking one.</div>
+  {% endif %}
+</div>
+
+<!-- Edit category modal -->
+<div class="modal-overlay" id="edit-category-modal">
+  <div class="modal">
+    <span class="modal-close" onclick="closeModal('edit-category-modal')">✕</span>
+    <h3>Edit {{ category.name }}</h3>
+    <form id="edit-category-form" class="stack-8" style="margin-top:12px;">
+      <div class="field"><label>Priority level</label>
+        <select name="priority_level">
+          <option value="1" {{ 'selected' if category.priority_level==1 }}>1 — Critical / Essential</option>
+          <option value="2" {{ 'selected' if category.priority_level==2 }}>2 — Important</option>
+          <option value="3" {{ 'selected' if category.priority_level==3 }}>3 — Convenience</option>
+        </select>
+      </div>
+      <div class="field"><label>Target budget (EGP)</label><input type="number" name="target_budget_egp" value="{{ category.target_budget_egp }}"></div>
+      <div class="field"><label>Notes</label><textarea name="notes" rows="3">{{ category.notes }}</textarea></div>
+      <button type="submit" class="btn-primary">Save changes</button>
+    </form>
+  </div>
+</div>
+
+<!-- Add product modal -->
+<div class="modal-overlay" id="add-product-modal">
+  <div class="modal">
+    <span class="modal-close" onclick="closeModal('add-product-modal')">✕</span>
+    <h3>Add a product to {{ category.name }}</h3>
+    <form id="add-product-form" class="stack-8" style="margin-top:12px;">
+      <input type="hidden" name="category_id" value="{{ category.id }}">
+      <div class="field-row">
+        <div class="field"><label>Brand</label><input name="brand" required></div>
+        <div class="field"><label>Model</label><input name="model" required></div>
+      </div>
+      <div class="field"><label>Full product name</label><input name="full_name" placeholder="e.g. LG NoFrost Refrigerator 475L Inverter"></div>
+      <div class="field-row">
+        <div class="field"><label>Capacity / size</label><input name="capacity" placeholder="e.g. 475L or 1.5 HP"></div>
+        <div class="field"><label>Target buy price (EGP)</label><input type="number" name="target_buy_price_egp"></div>
+      </div>
+      <button type="submit" class="btn-primary">Add product</button>
+    </form>
+  </div>
+</div>
+
+{% endblock %}
+{% block scripts %}
+<script>
+document.getElementById('edit-category-form').addEventListener('submit', async function (e) {
+  e.preventDefault();
+  const fd = new FormData(e.target);
+  await apiFetch('/api/categories/{{ category.id }}', { method: 'PUT', body: JSON.stringify({
+    priority_level: parseInt(fd.get('priority_level')),
+    target_budget_egp: parseFloat(fd.get('target_budget_egp')) || 0,
+    notes: fd.get('notes'),
+  })});
+  location.reload();
+});
+document.getElementById('add-product-form').addEventListener('submit', async function (e) {
+  e.preventDefault();
+  const fd = new FormData(e.target);
+  const product = await apiFetch('/api/products', { method: 'POST', body: JSON.stringify({
+    category_id: parseInt(fd.get('category_id')),
+    brand: fd.get('brand'), model: fd.get('model'), full_name: fd.get('full_name'),
+    capacity: fd.get('capacity'),
+    target_buy_price_egp: fd.get('target_buy_price_egp') ? parseFloat(fd.get('target_buy_price_egp')) : null,
+    purchase_status: 'shortlisted',
+  })});
+  window.location = '/products/' + product.id;
+});
+</script>
+{% endblock %}

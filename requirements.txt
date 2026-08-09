@@ -1,0 +1,18 @@
+# This app deliberately uses only Flask + stdlib sqlite3 for the core
+# (no ORM, no build step) so it runs anywhere Python 3.9+ runs. Install with:
+#   pip install -r requirements.txt
+#
+# All of these are common/lightweight; if you're on a machine where pip
+# already has them (as this project's build sandbox did), you may not need
+# to install anything at all.
+
+Flask>=3.0
+Jinja2>=3.1
+
+# Used by providers/generic_html.py (best-effort retailer page price
+# extraction) and wishlist.py (paste-a-URL import). The app still runs
+# without these — automated fetching just falls back to "manual tracking
+# only" — but install them to get real automated price checks working.
+requests>=2.31
+beautifulsoup4>=4.12
+lxml>=5.0

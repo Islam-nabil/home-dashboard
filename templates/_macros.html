@@ -1,0 +1,25 @@
+{% macro deal_badge(deal) %}
+  {% if deal is none or deal.score is none %}
+    <span class="deal-badge deal-no-data">No price data</span>
+  {% else %}
+    {% set cls = 'deal-poor' %}
+    {% if deal.score >= 90 %}{% set cls = 'deal-exceptional' %}
+    {% elif deal.score >= 75 %}{% set cls = 'deal-good' %}
+    {% elif deal.score >= 60 %}{% set cls = 'deal-fair' %}
+    {% elif deal.score >= 40 %}{% set cls = 'deal-wait' %}
+    {% endif %}
+    <span class="deal-badge {{ cls }}">{{ deal.score }}/100 · {{ deal.label }}</span>
+  {% endif %}
+{% endmacro %}
+
+{% macro decision_badge(rec) %}
+  {% if rec %}
+    <span class="decision-badge decision-{{ rec.decision }}">{{ rec.decision.replace('_', ' ') }}</span>
+  {% endif %}
+{% endmacro %}
+
+{% macro priority_badge(level) %}
+  <span class="priority-badge p{{ level }}">
+    {% if level == 1 %}Critical{% elif level == 2 %}Important{% else %}Convenience{% endif %}
+  </span>
+{% endmacro %}

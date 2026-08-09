@@ -1,0 +1,34 @@
+{% extends "base.html" %}
+{% block title %}Alerts — Home Setup Dashboard{% endblock %}
+{% block content %}
+
+<div class="section-head"><h1 style="font-size:20px;">Price Alerts</h1></div>
+
+{% if alerts %}
+<div class="card" style="padding:0; margin-top:16px;">
+  {% for a in alerts %}
+  <div class="alert-item {{ 'unread' if not a.is_read }}" id="alert-{{ a.id }}">
+    <div class="alert-icon">{{ '🔥' if a.alert_type in ('new_low','exceptional_deal') else '📉' if a.alert_type=='drop_10pct' else '🎯' if a.alert_type=='below_target' else '📦' }}</div>
+    <div style="flex:1;">
+      <a href="/products/{{ a.product_id }}"><strong>{{ a.full_name }}</strong></a>
+      <div>{{ a.message }}</div>
+      {% if a.recommendation %}<div class="muted" style="font-size:12px; margin-top:2px;">{{ a.recommendation }}</div>{% endif %}
+      <div class="alert-time">{{ a.triggered_at }} · {{ a.alert_type.replace('_',' ') }}</div>
+    </div>
+    {% if not a.is_read %}<button class="btn-ghost btn-sm" onclick="markRead({{ a.id }})">Mark read</button>{% endif %}
+  </div>
+  {% endfor %}
+</div>
+{% else %}
+<div class="empty-state" style="margin-top:16px;">No alerts yet — they'll appear here once tracked prices move.</div>
+{% endif %}
+
+{% endblock %}
+{% block scripts %}
+<script>
+async function markRead(id) {
+  await apiFetch(`/api/alerts/${id}/read`, { method: 'POST' });
+  document.getElementById('alert-' + id).classList.remove('unread');
+}
+</script>
+{% endblock %}

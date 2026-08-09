@@ -1,0 +1,89 @@
+{% extends "base.html" %}
+{% block title %}Settings — Home Setup Dashboard{% endblock %}
+{% block content %}
+
+<div class="section-head"><h1 style="font-size:20px;">Settings</h1></div>
+
+<div class="card" style="max-width:520px; margin-top:16px;">
+  <h3>Budget</h3>
+  <form id="budget-form" class="stack-8" style="margin-top:8px;">
+    <div class="field"><label>Total budget (EGP)</label><input type="number" name="total_budget_egp" value="{{ settings.total_budget_egp }}"></div>
+    <div class="field"><label>Price check frequency (hours)</label><input type="number" name="price_check_frequency_hours" value="{{ settings.price_check_frequency_hours }}"></div>
+    <button type="submit" class="btn-primary">Save</button>
+  </form>
+</div>
+
+<div class="card" style="max-width:520px; margin-top:16px;">
+  <h3>Notification channels</h3>
+  <p class="muted" style="font-size:12px;">in_app always works. email/telegram need SMTP_*/TELEGRAM_* environment variables set — see README.</p>
+  <form id="notif-form" class="stack-8" style="margin-top:8px;">
+    {% for ch in ['in_app', 'email', 'telegram'] %}
+    <label style="display:flex; align-items:center; gap:8px; font-size:13px; color:var(--text);">
+      <input type="checkbox" name="channels" value="{{ ch }}" {{ 'checked' if ch in settings.notification_channels }} style="width:auto;"> {{ ch }}
+    </label>
+    {% endfor %}
+    <button type="submit" class="btn-primary">Save</button>
+  </form>
+</div>
+
+<div class="section" style="margin-top:24px;">
+  <div class="section-head"><h2>Categories & Priorities</h2></div>
+  <div class="table-wrap">
+    <table class="data-table"><thead><tr><th>Category</th><th>Priority</th><th class="num">Target Budget</th><th></th></tr></thead>
+    <tbody>
+      {% for c in categories %}
+      <tr><td>{{ c.name }}</td><td>{{ c.priority_level }}</td><td class="num">{{ '{:,.0f}'.format(c.target_budget_egp) }}</td>
+      <td><a href="/appliances/{{ c.key }}" class="muted" style="font-size:12px;">Manage →</a></td></tr>
+      {% endfor %}
+    </tbody></table>
+  </div>
+</div>
+
+<div class="section" style="margin-top:24px;">
+  <div class="section-head"><h2>Retailers</h2></div>
+  <div class="table-wrap">
+    <table class="data-table"><thead><tr><th>Retailer</th><th>Provider</th><th class="num">Credibility</th><th>Notes</th></tr></thead>
+    <tbody>
+      {% for r in retailers %}
+      <tr><td>{{ r.name }}</td><td>{{ r.provider_key }}</td><td class="num">{{ r.credibility_score }}</td><td class="muted">{{ r.notes }}</td></tr>
+      {% endfor %}
+    </tbody></table>
+  </div>
+</div>
+
+<div class="section" style="margin-top:24px;">
+  <div class="section-head"><h2>Manual Price Check</h2></div>
+  <button class="btn-primary" id="run-check-btn">Run price check now</button>
+  <span id="check-status" class="muted" style="margin-left:10px; font-size:12.5px;"></span>
+</div>
+
+{% endblock %}
+{% block scripts %}
+<script>
+document.getElementById('budget-form').addEventListener('submit', async function (e) {
+  e.preventDefault();
+  const fd = new FormData(e.target);
+  await apiFetch('/api/settings', { method: 'PUT', body: JSON.stringify({
+    total_budget_egp: parseFloat(fd.get('total_budget_egp')),
+    price_check_frequency_hours: parseInt(fd.get('price_check_frequency_hours')),
+  })});
+  location.reload();
+});
+document.getElementById('notif-form').addEventListener('submit', async function (e) {
+  e.preventDefault();
+  const channels = Array.from(document.querySelectorAll('input[name="channels"]:checked')).map(el => el.value);
+  await apiFetch('/api/settings', { method: 'PUT', body: JSON.stringify({ notification_channels: channels }) });
+  location.reload();
+});
+document.getElementById('run-check-btn').addEventListener('click', async function () {
+  const status = document.getElementById('check-status');
+  status.textContent = 'Running...';
+  try {
+    const r = await apiFetch('/api/price-check/run', { method: 'POST', body: '{}' });
+    status.textContent = `Checked ${r.checked}, updated ${r.updated}, skipped ${r.skipped}, failed ${r.failed}, alerts created ${r.alerts_created}.`;
+  } catch (e) {
+    status.textContent = 'Failed: ' + e.message;
+  }
+});
+</script>
+{% endblock %}

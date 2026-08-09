@@ -1,0 +1,123 @@
+{% extends "base.html" %}
+{% block title %}Wishlist — Home Setup Dashboard{% endblock %}
+{% block content %}
+
+<div class="section-head"><h1 style="font-size:20px;">Wishlist / Manual Product Tracking</h1></div>
+<p class="muted" style="font-size:12.5px; max-width:640px;">
+  Paste a product URL and the app will try to auto-extract retailer, title, brand, model, price, and
+  availability (JSON-LD/structured-data based — works on many sites, not all). Whatever it finds is
+  shown for you to confirm or correct before anything is saved — nothing is trusted blindly.
+</p>
+
+<div class="card" style="max-width:640px; margin-top:16px;">
+  <h3>1. Paste a product URL</h3>
+  <div class="field-row" style="margin-top:8px;">
+    <div class="field" style="flex:1;"><input type="text" id="wishlist-url" placeholder="https://btech.com/en/p/..."></div>
+    <button class="btn-primary" id="extract-btn" style="align-self:flex-start;">Extract</button>
+  </div>
+  <div id="extract-status" class="muted" style="font-size:12px;"></div>
+</div>
+
+<div class="card" style="max-width:640px; margin-top:16px;">
+  <h3>2. Confirm / correct details</h3>
+  <form id="confirm-form" class="stack-8" style="margin-top:10px;">
+    <div class="field"><label>Existing product match (optional)</label>
+      <select name="existing_product_id" id="existing-match"><option value="">— Create a new product —</option></select>
+      <p class="muted-2" id="match-reason" style="font-size:11px; margin-top:4px;"></p>
+    </div>
+    <div class="field" id="category-field"><label>Category (for a new product)</label>
+      <select name="category_id">{% for c in categories %}<option value="{{ c.id }}">{{ c.name }}</option>{% endfor %}</select>
+    </div>
+    <div class="field-row">
+      <div class="field"><label>Brand</label><input name="brand"></div>
+      <div class="field"><label>Model</label><input name="model"></div>
+    </div>
+    <div class="field"><label>Full product name</label><input name="full_name"></div>
+    <div class="field-row">
+      <div class="field"><label>Retailer</label>
+        <select name="retailer_key">{% for r in retailers %}<option value="{{ r.key }}">{{ r.name }}</option>{% endfor %}<option value="other">Other / unlisted</option></select>
+      </div>
+      <div class="field"><label>Price (EGP)</label><input type="number" name="price_egp"></div>
+    </div>
+    <div class="field"><label>Product URL</label><input name="url"></div>
+    <div class="field"><label>Target buy price (EGP, optional)</label><input type="number" name="target_buy_price_egp"></div>
+    <button type="submit" class="btn-primary" style="width:100%;">Save to catalog</button>
+  </form>
+</div>
+
+<div class="section" style="margin-top:28px;">
+  <div class="section-head"><h2>Still Researching</h2></div>
+  {% if researching %}
+  <div class="table-wrap">
+    <table class="data-table"><thead><tr><th>Product</th><th>Category</th><th>Status</th></tr></thead>
+    <tbody>
+      {% for p in researching %}
+      <tr onclick="window.location='/products/{{ p.id }}'" style="cursor:pointer;">
+        <td>{{ p.full_name }}</td><td>{{ p.category.name }}</td><td>{{ p.purchase_status|title }}</td>
+      </tr>
+      {% endfor %}
+    </tbody></table>
+  </div>
+  {% else %}
+  <div class="empty-state">Nothing in "researching" status.</div>
+  {% endif %}
+</div>
+
+{% endblock %}
+{% block scripts %}
+<script>
+let lastCandidate = null;
+
+document.getElementById('extract-btn').addEventListener('click', async function () {
+  const url = document.getElementById('wishlist-url').value.trim();
+  if (!url) return;
+  const status = document.getElementById('extract-status');
+  status.textContent = 'Extracting...';
+  try {
+    const result = await apiFetch('/api/wishlist/extract', { method: 'POST', body: JSON.stringify({ url }) });
+    document.querySelector('[name="url"]').value = url;
+    if (result.extracted) {
+      status.textContent = 'Extracted from page structured data.';
+      document.querySelector('[name="full_name"]').value = result.full_name || '';
+      document.querySelector('[name="brand"]').value = result.brand_guess || '';
+      document.querySelector('[name="model"]').value = result.model_guess || '';
+      if (result.price) document.querySelector('[name="price_egp"]').value = result.price;
+      const retailerSelect = document.querySelector('[name="retailer_key"]');
+      if ([...retailerSelect.options].some(o => o.value === result.retailer_key)) retailerSelect.value = result.retailer_key;
+
+      const matchSelect = document.getElementById('existing-match');
+      matchSelect.innerHTML = '<option value="">— Create a new product —</option>';
+      if (result.possible_existing_match) {
+        const opt = document.createElement('option');
+        opt.value = result.possible_existing_match.product.id;
+        opt.textContent = `${result.possible_existing_match.product.full_name} (${result.possible_existing_match.confidence} match)`;
+        matchSelect.appendChild(opt);
+        document.getElementById('match-reason').textContent = result.possible_existing_match.reason;
+      } else {
+        document.getElementById('match-reason').textContent = '';
+      }
+    } else {
+      status.textContent = 'Could not auto-extract (' + (result.reason || 'unknown reason') + '). Fill the form manually below — this is expected for many JS-heavy retailer sites.';
+    }
+  } catch (e) {
+    status.textContent = 'Extraction failed: ' + e.message + '. Fill the form manually below.';
+  }
+});
+
+document.getElementById('confirm-form').addEventListener('submit', async function (e) {
+  e.preventDefault();
+  const fd = new FormData(e.target);
+  const body = {
+    existing_product_id: fd.get('existing_product_id') ? parseInt(fd.get('existing_product_id')) : null,
+    category_id: parseInt(fd.get('category_id')),
+    brand: fd.get('brand'), model: fd.get('model'), full_name: fd.get('full_name'),
+    retailer_key: fd.get('retailer_key'),
+    price_egp: fd.get('price_egp') ? parseFloat(fd.get('price_egp')) : null,
+    url: fd.get('url'),
+    target_buy_price_egp: fd.get('target_buy_price_egp') ? parseFloat(fd.get('target_buy_price_egp')) : null,
+  };
+  const product = await apiFetch('/api/wishlist/confirm', { method: 'POST', body: JSON.stringify(body) });
+  window.location = '/products/' + product.id;
+});
+</script>
+{% endblock %}
