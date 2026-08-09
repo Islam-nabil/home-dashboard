@@ -33,6 +33,22 @@
   </form>
 </div>
 
+<div class="card" style="max-width:520px; margin-top:16px;">
+  <h3>Chat assistant</h3>
+  <p class="muted" style="font-size:12px;">
+    The assistant panel (bottom-right 💬) always works — it's a deterministic
+    engine that reasons only over the prices already in this app. Setting
+    GROQ_API_KEY in your .env (free, see .env.example) turns on an optional
+    step that rephrases its answers more naturally, without ever changing
+    the numbers.
+  </p>
+  {% if settings.assistant_polish_enabled %}
+  <p style="font-size:12px; color:var(--accent); margin-top:4px;">✓ Natural-language polish is on, via {{ settings.assistant_provider }}.</p>
+  {% else %}
+  <p style="font-size:12px; color:var(--amber); margin-top:4px;">⚠ Polish is off — the assistant still answers, just in plainer templated sentences. Add GROQ_API_KEY and ENABLE_LLM_ASSISTANT_POLISH=true to your .env to turn it on.</p>
+  {% endif %}
+</div>
+
 <div class="section" style="margin-top:24px;">
   <div class="section-head"><h2>Categories & Priorities</h2></div>
   <div class="table-wrap">

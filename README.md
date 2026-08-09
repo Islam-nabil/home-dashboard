@@ -340,11 +340,26 @@ washing machines", "What happens to my budget if I buy this?", "Which
 Priority 1 purchase should I make first?", "Are there deals worth acting
 on today?", "What should I wait for?"
 
-If you set `ANTHROPIC_API_KEY` and `ENABLE_LLM_ASSISTANT_POLISH=true`, the
-deterministic answer is optionally passed through the real Claude API
-purely to smooth its phrasing (the prompt explicitly forbids adding new
-numbers); on any error it silently falls back to the deterministic text.
-Off by default — the assistant is fully useful with zero API key.
+If you set a provider key plus `ENABLE_LLM_ASSISTANT_POLISH=true`, the
+deterministic answer is optionally passed through an LLM purely to smooth
+its phrasing (the prompt explicitly forbids adding new numbers); on any
+error it silently falls back to the deterministic text. Off by default —
+the assistant is fully useful with zero API key.
+
+Two providers are supported (see `.env.example`):
+
+- **`GROQ_API_KEY`** (recommended) — free, no card required. Sign up at
+  [console.groq.com](https://console.groq.com/keys), open "API Keys" →
+  "Create API Key", paste it into `.env`. Serves Llama 3.3 70B, an
+  open-weight model, on Groq's fast inference hardware. `api.groq.com` is
+  already on PythonAnywhere's free-tier outbound allowlist, so this works
+  on the deployed version with no plan upgrade.
+- **`ANTHROPIC_API_KEY`** — paid, used only if `GROQ_API_KEY` isn't set.
+
+Set `GROQ_MODEL` to swap models later (defaults to
+`llama-3.3-70b-versatile`); check
+[console.groq.com/docs/models](https://console.groq.com/docs/models) for
+what's currently available on the free tier.
 
 ---
 
@@ -406,8 +421,8 @@ default — copy `.env.example` to `.env` and edit. Nothing is hard-coded:
 `TOTAL_BUDGET_EGP`, price-check frequency, Deal Score thresholds,
 notification channels + credentials, and `SECRET_KEY` are all
 externalized. No API key is required for the app to be fully functional —
-`ANTHROPIC_API_KEY` is strictly optional cosmetic polish for the
-assistant.
+`GROQ_API_KEY`/`ANTHROPIC_API_KEY` are strictly optional cosmetic polish
+for the assistant.
 
 ---
 
@@ -519,7 +534,8 @@ itself has no login screen.
 - **WhatsApp notifications not implemented** — no legitimate free path
   without a Meta Business account (section 9).
 - **The LLM assistant polish is unused by default** — no API key is
-  shipped or required; enabling it is your choice.
+  shipped or required; enabling it is your choice (Groq's free tier is
+  the recommended way to turn it on — see section 10).
 - Currency conversion isn't handled — everything assumes EGP throughout.
 
 ## 17. Recommended next improvements

@@ -290,14 +290,68 @@ def _handle_fallback(question, categories, products):
     ), {}
 
 
+_POLISH_SYSTEM_PROMPT = (
+    "Rephrase the following factual answer to be more natural and conversational. "
+    "Do not add, remove, or change any numbers, prices, or facts. Keep it concise."
+)
+
+
 def _maybe_polish_with_llm(question, deterministic_text, data):
-    """Optional cosmetic pass through the real Claude API. Disabled unless
-    the user explicitly sets ANTHROPIC_API_KEY + ENABLE_LLM_ASSISTANT_POLISH.
+    """Optional cosmetic pass through an LLM. Disabled unless the user
+    explicitly sets ENABLE_LLM_ASSISTANT_POLISH=true plus a provider key.
     Never adds facts: the prompt hands the model the deterministic answer
-    and instructs it to rephrase only; on any error we silently keep the
-    deterministic text so the assistant never depends on this to function."""
-    if not (config.ENABLE_LLM_ASSISTANT_POLISH and config.ANTHROPIC_API_KEY):
+    and instructs it to rephrase only; on any error (or if no provider is
+    configured) we silently keep the deterministic text, so the assistant
+    never depends on any external API to function.
+
+    Tries Groq first (free tier, open-weight models, already allowlisted on
+    PythonAnywhere's free plan), then falls back to Anthropic if that's the
+    only key set."""
+    if not config.ENABLE_LLM_ASSISTANT_POLISH:
         return deterministic_text
+    if config.GROQ_API_KEY:
+        polished = _polish_with_groq(question, deterministic_text)
+        if polished:
+            return polished
+    if config.ANTHROPIC_API_KEY:
+        polished = _polish_with_anthropic(question, deterministic_text)
+        if polished:
+            return polished
+    return deterministic_text
+
+
+def _polish_with_groq(question, deterministic_text):
+    try:
+        import requests
+        resp = requests.post(
+            "https://api.groq.com/openai/v1/chat/completions",
+            headers={
+                "Authorization": f"Bearer {config.GROQ_API_KEY}",
+                "Content-Type": "application/json",
+            },
+            json={
+                "model": config.GROQ_MODEL,
+                "max_tokens": 300,
+                "temperature": 0.3,
+                "messages": [
+                    {"role": "system", "content": _POLISH_SYSTEM_PROMPT},
+                    {"role": "user", "content": f"Question: {question}\nFactual answer: {deterministic_text}"},
+                ],
+            },
+            timeout=10,
+        )
+        if resp.status_code == 200:
+            choices = resp.json().get("choices", [])
+            if choices:
+                text = choices[0].get("message", {}).get("content", "").strip()
+                if text:
+                    return text
+    except Exception:  # noqa: BLE001
+        pass
+    return None
+
+
+def _polish_with_anthropic(question, deterministic_text):
     try:
         import requests
         resp = requests.post(
@@ -310,10 +364,7 @@ def _maybe_polish_with_llm(question, deterministic_text, data):
             json={
                 "model": "claude-haiku-4-5",
                 "max_tokens": 300,
-                "system": (
-                    "Rephrase the following factual answer to be more natural and conversational. "
-                    "Do not add, remove, or change any numbers, prices, or facts. Keep it concise."
-                ),
+                "system": _POLISH_SYSTEM_PROMPT,
                 "messages": [{"role": "user", "content": f"Question: {question}\nFactual answer: {deterministic_text}"}],
             },
             timeout=10,
@@ -324,4 +375,4 @@ def _maybe_polish_with_llm(question, deterministic_text, data):
                 return content[0]["text"]
     except Exception:  # noqa: BLE001
         pass
-    return deterministic_text
+    return None

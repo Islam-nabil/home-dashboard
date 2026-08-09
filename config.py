@@ -122,9 +122,19 @@ NOTIFY_EMAIL_TO_LIST = [e.strip() for e in NOTIFY_EMAIL_TO.split(",") if e.strip
 # --- Optional AI assistant upgrade -------------------------------------------
 # The built-in assistant (assistant.py) is fully deterministic and reasons
 # only over data already stored in the database - it never invents prices.
-# If ANTHROPIC_API_KEY is set, the assistant can optionally use it to turn
-# free-text questions into a nicer natural-language answer wrapped around the
-# same deterministic data (see assistant.py: `_maybe_polish_with_llm`).
+# If a provider key below is set (and ENABLE_LLM_ASSISTANT_POLISH=true), the
+# assistant can optionally use it to turn free-text questions into a nicer
+# natural-language answer wrapped around the same deterministic data (see
+# assistant.py: `_maybe_polish_with_llm`). It never adds facts - the model is
+# only ever asked to rephrase an already-computed answer.
+#
+# Two providers are supported; if both keys are set, Groq is tried first:
+#   - GROQ_API_KEY: free tier (https://console.groq.com/keys), serves fast
+#     open-weight models like Llama 3.3. Recommended default - no cost and
+#     already allowlisted on PythonAnywhere's free-tier outbound internet.
+#   - ANTHROPIC_API_KEY: paid, used as an optional fallback/upgrade.
+GROQ_API_KEY = os.environ.get("GROQ_API_KEY", "")
+GROQ_MODEL = os.environ.get("GROQ_MODEL", "llama-3.3-70b-versatile")
 ANTHROPIC_API_KEY = os.environ.get("ANTHROPIC_API_KEY", "")
 ENABLE_LLM_ASSISTANT_POLISH = _env_bool("ENABLE_LLM_ASSISTANT_POLISH", False)
 

@@ -79,6 +79,10 @@ def settings_page():
         "notification_channels": db.get_setting("notification_channels", config.NOTIFICATION_CHANNELS),
         "notify_email_to": ", ".join(notify.get_recipients()),
         "email_configured": bool(config.SMTP_HOST and config.SMTP_USER and config.SMTP_PASSWORD),
+        "assistant_polish_enabled": bool(
+            config.ENABLE_LLM_ASSISTANT_POLISH and (config.GROQ_API_KEY or config.ANTHROPIC_API_KEY)
+        ),
+        "assistant_provider": "Groq (free)" if config.GROQ_API_KEY else ("Anthropic" if config.ANTHROPIC_API_KEY else None),
     }
     retailers = repo.list_retailers()
     return render_template("settings.html", page="settings", categories=categories, settings=settings,
