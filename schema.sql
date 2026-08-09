@@ -169,3 +169,19 @@ CREATE TABLE IF NOT EXISTS price_check_log (
     detail          TEXT DEFAULT ''
 );
 CREATE INDEX IF NOT EXISTS idx_checklog_listing ON price_check_log(listing_id);
+
+-- "Who did what" activity feed — this is a shared household tool (not
+-- multi-account auth, see README Security), so "identity" here is just a
+-- display name someone picks in the top bar (stored in their browser
+-- session cookie), not a password-protected account. Good enough to answer
+-- "did you add this or did she?" without building real user accounts.
+CREATE TABLE IF NOT EXISTS activity_log (
+    id              INTEGER PRIMARY KEY AUTOINCREMENT,
+    actor           TEXT NOT NULL DEFAULT 'Someone',
+    action          TEXT NOT NULL,   -- added | updated_status | updated_target | priced | purchased | wishlisted
+    entity_type     TEXT NOT NULL DEFAULT 'product',
+    entity_id       INTEGER,
+    summary         TEXT NOT NULL,
+    created_at      TEXT NOT NULL
+);
+CREATE INDEX IF NOT EXISTS idx_activity_time ON activity_log(created_at);

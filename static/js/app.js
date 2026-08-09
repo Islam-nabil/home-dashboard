@@ -168,3 +168,19 @@ function drawLineChart(canvas, points, opts) {
     ctx.beginPath(); ctx.arc(x, y, 2.5, 0, Math.PI * 2); ctx.fill();
   });
 }
+
+// ---------------- "Who's this" identity switcher ----------------
+// Just a display name for the Activity feed (not a login) — see
+// templates/activity_page.html and README "Activity" notes.
+document.addEventListener('DOMContentLoaded', function () {
+  const btn = document.getElementById('whoami-btn');
+  if (!btn) return;
+  btn.addEventListener('click', async function () {
+    const current = document.getElementById('whoami-label').textContent.trim();
+    const name = prompt('Who is this? (shown on the Activity feed so you can tell who added/changed what)',
+                         current === 'Who are you?' ? '' : current);
+    if (name === null) return;
+    const result = await apiFetch('/api/whoami', { method: 'POST', body: JSON.stringify({ actor_name: name.trim() }) });
+    document.getElementById('whoami-label').textContent = result.actor_name || 'Who are you?';
+  });
+});

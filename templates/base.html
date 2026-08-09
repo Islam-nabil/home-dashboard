@@ -21,6 +21,7 @@
       <a class="nav-link {{ 'active' if page=='wishlist' }}" href="{{ url_for('pages.wishlist_page') }}">➕ Wishlist</a>
       <a class="nav-link {{ 'active' if page=='my_home' }}" href="{{ url_for('pages.my_home_page') }}">🏡 My Home</a>
       <a class="nav-link {{ 'active' if page=='alerts' }}" href="{{ url_for('pages.alerts_page') }}">🔔 Alerts</a>
+      <a class="nav-link {{ 'active' if page=='activity' }}" href="{{ url_for('pages.activity_page') }}">🕘 Activity</a>
       <a class="nav-link {{ 'active' if page=='settings' }}" href="{{ url_for('pages.settings_page') }}">⚙️ Settings</a>
     </nav>
     <div class="nav-section">
@@ -35,6 +36,11 @@
   </aside>
 
   <div class="main">
+    <div class="topbar" style="display:flex; justify-content:flex-end;">
+      <button class="btn-ghost btn-sm" id="whoami-btn" title="Who's using this right now? Just shows up on the Activity feed.">
+        👤 <span id="whoami-label">{{ current_actor or 'Who are you?' }}</span>
+      </button>
+    </div>
     <div class="content">
       {% block content %}{% endblock %}
     </div>

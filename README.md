@@ -304,6 +304,25 @@ legitimate path is the paid WhatsApp Business Cloud API requiring a Meta
 developer account, out of scope for a v1 personal tool with no such
 account — this is documented rather than faked.
 
+### Setting up email for two people (you + your fiancée)
+
+1. In `.env`, set `SMTP_HOST`, `SMTP_USER`, `SMTP_PASSWORD` for the sending
+   account. For Gmail: `SMTP_HOST=smtp.gmail.com`, `SMTP_PORT=587`,
+   `SMTP_USER=` your Gmail address, `SMTP_PASSWORD=` a 16-character **App
+   Password** from `myaccount.google.com/apppasswords` (not your normal
+   Gmail password — you need 2-Step Verification turned on first to
+   generate one).
+2. Set `NOTIFY_EMAIL_TO=you@example.com,fiancee@example.com` (comma-separated,
+   both addresses go in the same variable — every alert email goes to both).
+3. Restart the app (or reload the web app on PythonAnywhere) so the new env
+   vars are picked up.
+4. In the app, go to **Settings** → check the **email** channel box → the
+   "Email recipients" field is pre-filled from step 2, but you can also
+   change it there directly (add/remove people) without touching `.env` or
+   restarting anything — it's saved straight to the database.
+5. Use "Run price check now" on the Settings page to trigger a real check
+   and confirm an email actually arrives if any alert conditions are met.
+
 ---
 
 ## 10. AI Purchasing Assistant

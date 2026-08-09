@@ -62,14 +62,23 @@ def alerts_page():
     return render_template("alerts_page.html", page="alerts", alerts=alerts)
 
 
+@pages_bp.get("/activity")
+def activity_page():
+    activity = repo.list_activity(limit=200)
+    return render_template("activity_page.html", page="activity", activity=activity)
+
+
 @pages_bp.get("/settings")
 def settings_page():
     import db
     categories = repo.list_categories()
+    import notify
     settings = {
         "total_budget_egp": db.get_setting("total_budget_egp", config.TOTAL_BUDGET_EGP),
         "price_check_frequency_hours": db.get_setting("price_check_frequency_hours", config.PRICE_CHECK_FREQUENCY_HOURS),
         "notification_channels": db.get_setting("notification_channels", config.NOTIFICATION_CHANNELS),
+        "notify_email_to": ", ".join(notify.get_recipients()),
+        "email_configured": bool(config.SMTP_HOST and config.SMTP_USER and config.SMTP_PASSWORD),
     }
     retailers = repo.list_retailers()
     return render_template("settings.html", page="settings", categories=categories, settings=settings,

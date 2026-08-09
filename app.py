@@ -5,7 +5,7 @@ Run with:  python app.py
 (or `flask --app app run` / gunicorn app:app in production - see README)
 """
 import hmac
-from flask import Flask, request, Response
+from flask import Flask, request, Response, session
 
 import config
 import db
@@ -49,6 +49,10 @@ def create_app():
             return {"nav_categories": repo.list_categories()}
         except Exception:
             return {"nav_categories": []}
+
+    @app.context_processor
+    def inject_current_actor():
+        return {"current_actor": session.get("actor_name", "")}
 
     @app.teardown_appcontext
     def close_db(exception=None):

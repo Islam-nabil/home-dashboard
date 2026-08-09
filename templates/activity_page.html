@@ -1,0 +1,32 @@
+{% extends "base.html" %}
+{% block title %}Activity — Home Setup Dashboard{% endblock %}
+{% block content %}
+
+<div class="section-head">
+  <h1 style="font-size:20px;">Activity</h1>
+</div>
+<p class="muted" style="font-size:12.5px; max-width:640px;">
+  Who added or changed what — this is just a shared display name picked in the
+  top bar, not a password-protected account (see Settings/README). Useful for
+  "wait, did you already add that fridge?" moments.
+</p>
+
+{% if activity %}
+<div class="card" style="padding:0; margin-top:16px;">
+  {% for a in activity %}
+  <div class="alert-item">
+    <div class="alert-icon">
+      {{ '➕' if a.action=='added' else '🔄' if a.action=='updated_status' else '🎯' if a.action=='updated_target' else '💰' if a.action=='priced' else '🛒' if a.action=='purchased' else '📋' if a.action=='wishlisted' else '•' }}
+    </div>
+    <div style="flex:1;">
+      <div><strong>{{ a.actor }}</strong> {{ a.summary }}</div>
+      <div class="alert-time">{{ a.created_at }}</div>
+    </div>
+  </div>
+  {% endfor %}
+</div>
+{% else %}
+<div class="empty-state" style="margin-top:16px;">No activity yet — anything added, priced, or purchased will show up here.</div>
+{% endif %}
+
+{% endblock %}

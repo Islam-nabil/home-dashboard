@@ -456,6 +456,19 @@ def log_notification(alert_id, channel, status, detail=""):
     })
 
 
+# ============================= Activity feed =====================================
+
+def log_activity(actor, action, summary, entity_type="product", entity_id=None):
+    db.insert("activity_log", {
+        "actor": actor or "Someone", "action": action, "entity_type": entity_type,
+        "entity_id": entity_id, "summary": summary, "created_at": db.now_iso(),
+    })
+
+
+def list_activity(limit=50):
+    return db.query_all("SELECT * FROM activity_log ORDER BY created_at DESC LIMIT ?", (limit,))
+
+
 # ============================= Research sources =====================================
 
 def add_research_source(product_id, url, retailer, confidence="verified", note="", listing_id=None):

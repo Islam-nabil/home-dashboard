@@ -24,19 +24,32 @@ import config
 import repository as repo
 
 
+def get_recipients():
+    """Recipient list, preferring the DB setting (editable from the Settings
+    page, no redeploy needed) and falling back to the NOTIFY_EMAIL_TO env
+    var. Always a list, e.g. ["islam@x.com", "fiancee@y.com"]."""
+    stored = db.get_setting("notify_email_to", None)
+    if stored:
+        if isinstance(stored, str):
+            return [e.strip() for e in stored.split(",") if e.strip()]
+        return [e for e in stored if e]
+    return list(config.NOTIFY_EMAIL_TO_LIST)
+
+
 def _send_email(subject, body):
-    if not (config.SMTP_HOST and config.SMTP_USER and config.SMTP_PASSWORD and config.NOTIFY_EMAIL_TO):
-        return False, "Email not configured (SMTP_HOST/SMTP_USER/SMTP_PASSWORD/NOTIFY_EMAIL_TO missing)."
+    recipients = get_recipients()
+    if not (config.SMTP_HOST and config.SMTP_USER and config.SMTP_PASSWORD and recipients):
+        return False, "Email not configured (SMTP_HOST/SMTP_USER/SMTP_PASSWORD missing, or no recipient emails set in Settings)."
     try:
         msg = MIMEText(body)
         msg["Subject"] = subject
         msg["From"] = config.SMTP_USER
-        msg["To"] = config.NOTIFY_EMAIL_TO
+        msg["To"] = ", ".join(recipients)
         with smtplib.SMTP(config.SMTP_HOST, config.SMTP_PORT, timeout=10) as server:
             server.starttls()
             server.login(config.SMTP_USER, config.SMTP_PASSWORD)
-            server.sendmail(config.SMTP_USER, [config.NOTIFY_EMAIL_TO], msg.as_string())
-        return True, "sent"
+            server.sendmail(config.SMTP_USER, recipients, msg.as_string())
+        return True, f"sent to {', '.join(recipients)}"
     except Exception as e:  # noqa: BLE001
         return False, str(e)
 

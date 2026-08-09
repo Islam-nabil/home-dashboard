@@ -112,7 +112,12 @@ SMTP_HOST = os.environ.get("SMTP_HOST", "")
 SMTP_PORT = _env_int("SMTP_PORT", 587)
 SMTP_USER = os.environ.get("SMTP_USER", "")
 SMTP_PASSWORD = os.environ.get("SMTP_PASSWORD", "")
+# Comma-separated list of recipient addresses, e.g. "you@x.com,partner@y.com".
+# This is just the *default* — it can also be set/changed from the Settings
+# page in the app (stored in the DB), which overrides this env value without
+# needing a redeploy.
 NOTIFY_EMAIL_TO = os.environ.get("NOTIFY_EMAIL_TO", "")
+NOTIFY_EMAIL_TO_LIST = [e.strip() for e in NOTIFY_EMAIL_TO.split(",") if e.strip()]
 
 # --- Optional AI assistant upgrade -------------------------------------------
 # The built-in assistant (assistant.py) is fully deterministic and reasons

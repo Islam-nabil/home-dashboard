@@ -4,7 +4,7 @@ since this is a single-user personal app — the split-by-concern already
 lives in engines/, providers/, repository.py, price_check.py, assistant.py,
 wishlist.py; this file is just the thin HTTP layer over them.
 """
-from flask import Blueprint, request, jsonify
+from flask import Blueprint, request, jsonify, session
 
 import db
 import config
@@ -23,6 +23,35 @@ def _bad_request(msg):
 
 def _not_found(msg="Not found"):
     return jsonify({"error": msg}), 404
+
+
+def _actor():
+    """Current display name for the activity feed — whoever picked a name
+    in the top-bar switcher (stored in their browser session), or 'Someone'
+    if they haven't. Not an auth identity, just attribution."""
+    return session.get("actor_name") or "Someone"
+
+
+# ============================= Identity (who's using this) =====================================
+
+@api_bp.get("/whoami")
+def api_whoami():
+    return jsonify({"actor_name": session.get("actor_name", "")})
+
+
+@api_bp.post("/whoami")
+def api_set_whoami():
+    data = request.get_json(force=True)
+    name = (data.get("actor_name") or "").strip()[:40]
+    session["actor_name"] = name
+    session.permanent = True
+    return jsonify({"actor_name": name})
+
+
+@api_bp.get("/activity")
+def api_list_activity():
+    limit = request.args.get("limit", 50, type=int)
+    return jsonify(repo.list_activity(limit=limit))
 
 
 # ============================= Dashboard =====================================
@@ -113,16 +142,30 @@ def api_create_product():
         return _bad_request("category_id, brand, and model are required")
     product_id = repo.create_product(data)
     repo.recompute_and_store_ai_score(product_id)
-    return jsonify(repo.get_product(product_id)), 201
+    product = repo.get_product(product_id)
+    repo.log_activity(_actor(), "added", f"added \"{product['full_name']}\" to {product['category']['name']}",
+                       entity_id=product_id)
+    return jsonify(product), 201
 
 
 @api_bp.put("/products/<int:product_id>")
 def api_update_product(product_id):
-    if repo.get_product(product_id, with_pricing=False) is None:
+    before = repo.get_product(product_id, with_pricing=False)
+    if before is None:
         return _not_found()
-    repo.update_product(product_id, request.get_json(force=True))
+    changes = request.get_json(force=True)
+    repo.update_product(product_id, changes)
     repo.recompute_and_store_ai_score(product_id)
-    return jsonify(repo.get_product(product_id))
+    product = repo.get_product(product_id)
+    if "purchase_status" in changes and changes["purchase_status"] != before.get("purchase_status"):
+        repo.log_activity(_actor(), "updated_status",
+                           f"moved \"{product['full_name']}\" to {changes['purchase_status'].replace('_',' ')}",
+                           entity_id=product_id)
+    elif "target_buy_price_egp" in changes:
+        repo.log_activity(_actor(), "updated_target",
+                           f"set target price for \"{product['full_name']}\" to {changes['target_buy_price_egp']} EGP",
+                           entity_id=product_id)
+    return jsonify(product)
 
 
 @api_bp.delete("/products/<int:product_id>")
@@ -178,7 +221,10 @@ def api_add_price(product_id):
     # for the next scheduled check.
     price_check._evaluate_and_alert(product_id)  # noqa: SLF001 - internal reuse within same app
 
-    return jsonify(repo.get_product(product_id)), 201
+    product = repo.get_product(product_id)
+    repo.log_activity(_actor(), "priced", f"recorded a price of {price_egp:,.0f} EGP for \"{product['full_name']}\" at {retailer['name']}",
+                       entity_id=product_id)
+    return jsonify(product), 201
 
 
 # ============================= Purchases =====================================
@@ -197,7 +243,11 @@ def api_create_purchase():
         retailer = repo.get_or_create_retailer(data["retailer_key"], name=data.get("retailer_name", data["retailer_key"]))
         data["retailer_id"] = retailer["id"]
     purchase_id = repo.create_purchase(data)
-    return jsonify({"id": purchase_id, "product": repo.get_product(data["product_id"])}), 201
+    product = repo.get_product(data["product_id"])
+    repo.log_activity(_actor(), "purchased",
+                       f"marked \"{product['full_name']}\" as purchased for {data['purchase_price_egp']:,.0f} EGP",
+                       entity_id=data["product_id"])
+    return jsonify({"id": purchase_id, "product": product}), 201
 
 
 # ============================= Alerts =====================================
@@ -275,7 +325,10 @@ def api_wishlist_confirm():
     if data.get("url"):
         repo.add_research_source(product_id, data["url"], retailer["name"], confidence="verified", listing_id=listing_id)
 
-    return jsonify(repo.get_product(product_id)), 201
+    product = repo.get_product(product_id)
+    repo.log_activity(_actor(), "wishlisted", f"added \"{product['full_name']}\" from the wishlist ({retailer['name']})",
+                       entity_id=product_id)
+    return jsonify(product), 201
 
 
 # ============================= Assistant =====================================
@@ -321,7 +374,7 @@ def api_get_settings():
 @api_bp.put("/settings")
 def api_update_settings():
     data = request.get_json(force=True)
-    for key in ("total_budget_egp", "price_check_frequency_hours", "deal_score_thresholds", "notification_channels"):
+    for key in ("total_budget_egp", "price_check_frequency_hours", "deal_score_thresholds", "notification_channels", "notify_email_to"):
         if key in data:
             db.set_setting(key, data[key])
     return jsonify({"ok": True})
