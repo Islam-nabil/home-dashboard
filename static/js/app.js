@@ -128,7 +128,7 @@ function drawLineChart(canvas, points, opts) {
   const w = canvas.width, h = canvas.height;
   ctx.clearRect(0, 0, w, h);
   if (!points || points.length === 0) {
-    ctx.fillStyle = '#626a7d'; ctx.font = '12px sans-serif';
+    ctx.fillStyle = '#9aa0b4'; ctx.font = '12px sans-serif';
     ctx.fillText('No price history yet', 10, h / 2);
     return;
   }
@@ -142,18 +142,18 @@ function drawLineChart(canvas, points, opts) {
 
   // target price line
   if (opts.target) {
-    ctx.strokeStyle = '#f5b942'; ctx.setLineDash([4, 4]); ctx.lineWidth = 1;
+    ctx.strokeStyle = '#f5a623'; ctx.setLineDash([4, 4]); ctx.lineWidth = 1;
     ctx.beginPath(); ctx.moveTo(pad, yPix(opts.target)); ctx.lineTo(w - pad, yPix(opts.target)); ctx.stroke();
     ctx.setLineDash([]);
   }
   // low marker
   if (opts.low) {
-    ctx.strokeStyle = '#33d6a6'; ctx.setLineDash([2, 3]); ctx.lineWidth = 1;
+    ctx.strokeStyle = '#12b76a'; ctx.setLineDash([2, 3]); ctx.lineWidth = 1;
     ctx.beginPath(); ctx.moveTo(pad, yPix(opts.low)); ctx.lineTo(w - pad, yPix(opts.low)); ctx.stroke();
     ctx.setLineDash([]);
   }
 
-  ctx.strokeStyle = opts.color || '#5b9dff';
+  ctx.strokeStyle = opts.color || '#3b6fe0';
   ctx.lineWidth = 2;
   ctx.beginPath();
   points.forEach((p, i) => {
@@ -162,7 +162,7 @@ function drawLineChart(canvas, points, opts) {
   });
   ctx.stroke();
 
-  ctx.fillStyle = opts.color || '#5b9dff';
+  ctx.fillStyle = opts.color || '#3b6fe0';
   points.forEach((p, i) => {
     const x = pad + i * xStep, y = yPix(p.y);
     ctx.beginPath(); ctx.arc(x, y, 2.5, 0, Math.PI * 2); ctx.fill();

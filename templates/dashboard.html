@@ -4,42 +4,64 @@
 {% block content %}
 
 <div class="budget-header">
-  <div class="title-row">
-    <h1>Home Setup Dashboard</h1>
-    <span class="risk-pill risk-{{ budget.risk_level }}">{{ budget.risk_level.replace('_',' ')|title }} budget</span>
+  <div style="display:flex; gap:26px; align-items:center; flex-wrap:wrap;">
+    <div class="donut-wrap">
+      {% set pct = budget.percent_complete or 0 %}
+      {% set circumference = 314 %}
+      {% set offset = circumference - (circumference * (pct / 100)) %}
+      <svg width="116" height="116" viewBox="0 0 120 120">
+        <circle cx="60" cy="60" r="50" fill="none" stroke="#f1e4df" stroke-width="14"/>
+        <circle cx="60" cy="60" r="50" fill="none" stroke="#ff6b4a" stroke-width="14" stroke-linecap="round"
+          stroke-dasharray="{{ circumference }}" stroke-dashoffset="{{ offset }}" transform="rotate(-90 60 60)"/>
+      </svg>
+      <div class="donut-label"><div class="pct">{{ pct }}%</div><div class="txt">of budget used</div></div>
+    </div>
+    <div style="flex:1; min-width:260px;">
+      <div class="title-row">
+        <h1>Home Setup Dashboard</h1>
+        <span class="risk-pill risk-{{ budget.risk_level }}">{{ budget.risk_level.replace('_',' ')|title }} budget</span>
+      </div>
+      <div class="budget-grid">
+        <div class="budget-stat"><div class="label">Total Budget</div><div class="value">{{ '{:,.0f} EGP'.format(budget.total_budget_egp) }}</div></div>
+        <div class="budget-stat"><div class="label">Spent</div><div class="value">{{ '{:,.0f} EGP'.format(budget.spent_egp) }}</div></div>
+        <div class="budget-stat"><div class="label">Committed</div><div class="value">{{ '{:,.0f} EGP'.format(budget.committed_egp) }}</div></div>
+        <div class="budget-stat"><div class="label">Remaining</div><div class="value pos">{{ '{:,.0f} EGP'.format(budget.remaining_egp) }}</div></div>
+        <div class="budget-stat"><div class="label">Est. Remaining Essentials</div><div class="value">{{ '{:,.0f} EGP'.format(budget.estimated_remaining_essential_egp) }}</div></div>
+        <div class="budget-stat"><div class="label">Budget Buffer</div><div class="value {{ 'neg' if budget.buffer_egp < 0 else 'pos' }}">{{ '{:,.0f} EGP'.format(budget.buffer_egp) }}</div></div>
+      </div>
+      <div class="progress-bar"><div class="fill" style="width: {{ pct }}%"></div></div>
+      <p class="muted" style="margin-top:10px; font-size:12.5px;">
+        Setup {{ pct }}% complete · Critical appliances purchased: {{ budget.critical_purchased }}/{{ budget.critical_total }} ·
+        {{ budget.categories_with_purchase }}/{{ budget.categories_total }} categories fulfilled
+      </p>
+    </div>
   </div>
-  <div class="budget-grid">
-    <div class="budget-stat"><div class="label">Total Budget</div><div class="value">{{ '{:,.0f} EGP'.format(budget.total_budget_egp) }}</div></div>
-    <div class="budget-stat"><div class="label">Spent</div><div class="value">{{ '{:,.0f} EGP'.format(budget.spent_egp) }}</div></div>
-    <div class="budget-stat"><div class="label">Committed</div><div class="value">{{ '{:,.0f} EGP'.format(budget.committed_egp) }}</div></div>
-    <div class="budget-stat"><div class="label">Remaining</div><div class="value pos">{{ '{:,.0f} EGP'.format(budget.remaining_egp) }}</div></div>
-    <div class="budget-stat"><div class="label">Est. Remaining Essentials</div><div class="value">{{ '{:,.0f} EGP'.format(budget.estimated_remaining_essential_egp) }}</div></div>
-    <div class="budget-stat"><div class="label">Budget Buffer</div><div class="value {{ 'neg' if budget.buffer_egp < 0 else 'pos' }}">{{ '{:,.0f} EGP'.format(budget.buffer_egp) }}</div></div>
-  </div>
-  <div class="progress-bar"><div class="fill" style="width: {{ budget.percent_complete }}%"></div></div>
-  <p class="muted" style="margin-top:8px; font-size:12.5px;">
-    Setup {{ budget.percent_complete }}% complete · Critical appliances purchased: {{ budget.critical_purchased }}/{{ budget.critical_total }} ·
-    {{ budget.categories_with_purchase }}/{{ budget.categories_total }} categories fulfilled
-  </p>
 </div>
 
 {% if next_buy %}
 <div class="section">
   <div class="section-head"><h2>🎯 What Should I Buy Next?</h2></div>
-  <div class="card" style="border-color: var(--accent-dim);">
-    <div class="flex-between">
-      <div>
-        <div class="candidate-name">{{ next_buy.best_candidate.full_name }}</div>
-        <div class="muted" style="font-size:12.5px;">{{ next_buy.category.name }} · {{ next_buy.best_candidate.pricing.best_retailer or 'No retailer yet' }}</div>
+  <div class="card" style="border-color: var(--coral); display:flex; gap:16px; align-items:center;">
+    {% if next_buy.best_candidate.image_url %}
+    <img src="{{ next_buy.best_candidate.image_url }}" class="thumb-lg" loading="lazy" onerror="this.style.display='none'">
+    {% else %}
+    <div class="thumb-lg thumb thumb-placeholder">{{ next_buy.category.icon }}</div>
+    {% endif %}
+    <div style="flex:1;">
+      <div class="flex-between">
+        <div>
+          <div class="candidate-name">{{ next_buy.best_candidate.full_name }}</div>
+          <div class="muted" style="font-size:12.5px;">{{ next_buy.category.name }} · {{ next_buy.best_candidate.pricing.best_retailer or 'No retailer yet' }}</div>
+        </div>
+        {{ m.decision_badge(next_buy.recommendation) }}
       </div>
-      {{ m.decision_badge(next_buy.recommendation) }}
+      <div class="price-row">
+        <span class="current">{{ '{:,.0f} EGP'.format(next_buy.best_candidate.pricing.current_price) if next_buy.best_candidate.pricing.current_price else 'No price yet' }}</span>
+        {{ m.deal_badge(next_buy.best_candidate.deal_score) }}
+      </div>
+      <p class="rec-explain">{{ next_buy.recommendation.explanation }}</p>
+      <a href="{{ url_for('pages.product_page', product_id=next_buy.best_candidate.id) }}"><button class="btn-secondary btn-sm">View details</button></a>
     </div>
-    <div class="price-row">
-      <span class="current">{{ '{:,.0f} EGP'.format(next_buy.best_candidate.pricing.current_price) if next_buy.best_candidate.pricing.current_price else 'No price yet' }}</span>
-      {{ m.deal_badge(next_buy.best_candidate.deal_score) }}
-    </div>
-    <p class="rec-explain">{{ next_buy.recommendation.explanation }}</p>
-    <a href="{{ url_for('pages.product_page', product_id=next_buy.best_candidate.id) }}"><button class="btn-secondary btn-sm">View details</button></a>
   </div>
 </div>
 {% endif %}
@@ -49,29 +71,38 @@
   <div class="card-grid">
     {% for card in priority_cards %}
     <div class="card priority-card">
-      <div class="p-head">
-        <div class="p-title">
-          <span class="p{{ card.category.priority_level }}-dot">●</span>
-          <a href="{{ url_for('pages.category_page', key=card.category.key) }}">{{ card.category.name }}</a>
-        </div>
-        {% if card.is_fulfilled %}<span class="fulfilled-badge">✓ Purchased</span>{% else %}{{ m.priority_badge(card.category.priority_level) }}{% endif %}
+      <div class="p-photo">
+        <span class="cat-chip">{{ card.category.icon }}</span>
+        {% if card.best_candidate and card.best_candidate.image_url %}
+        <img src="{{ card.best_candidate.image_url }}" loading="lazy" onerror="this.style.display='none'">
+        {% else %}
+        <span style="font-size:40px; opacity:0.5;">{{ card.category.icon }}</span>
+        {% endif %}
       </div>
-      <div class="muted" style="font-size:12px;">Target budget: {{ '{:,.0f} EGP'.format(card.category.target_budget_egp) }} · {{ card.num_shortlisted }} shortlisted</div>
-      {% if card.best_candidate %}
-        <div class="candidate-name">{{ card.best_candidate.full_name }}</div>
-        <div class="price-row">
-          <span class="current">{{ '{:,.0f} EGP'.format(card.best_candidate.pricing.current_price) if card.best_candidate.pricing.current_price else '—' }}</span>
-          {% if card.best_candidate.target_buy_price_egp %}<span class="target">target {{ '{:,.0f}'.format(card.best_candidate.target_buy_price_egp) }}</span>{% endif %}
+      <div class="p-body">
+        <div class="p-head">
+          <div class="p-title">
+            <a href="{{ url_for('pages.category_page', key=card.category.key) }}">{{ card.category.name }}</a>
+          </div>
+          {% if card.is_fulfilled %}<span class="fulfilled-badge">✓ Purchased</span>{% else %}{{ m.priority_badge(card.category.priority_level) }}{% endif %}
         </div>
-        <div style="display:flex; gap:8px; align-items:center; flex-wrap:wrap;">
-          {{ m.deal_badge(card.best_candidate.deal_score) }}
-          {% if card.recommendation %}{{ m.decision_badge(card.recommendation) }}{% endif %}
+        <div class="muted" style="font-size:12px;">Target budget: {{ '{:,.0f} EGP'.format(card.category.target_budget_egp) }} · {{ card.num_shortlisted }} shortlisted</div>
+        {% if card.best_candidate %}
+          <div class="candidate-name">{{ card.best_candidate.full_name }}</div>
+          <div class="price-row">
+            <span class="current">{{ '{:,.0f} EGP'.format(card.best_candidate.pricing.current_price) if card.best_candidate.pricing.current_price else '—' }}</span>
+            {% if card.best_candidate.target_buy_price_egp %}<span class="target">target {{ '{:,.0f}'.format(card.best_candidate.target_buy_price_egp) }}</span>{% endif %}
+          </div>
+          <div style="display:flex; gap:8px; align-items:center; flex-wrap:wrap;">
+            {{ m.deal_badge(card.best_candidate.deal_score) }}
+            {% if card.recommendation %}{{ m.decision_badge(card.recommendation) }}{% endif %}
+          </div>
+        {% else %}
+          <p class="muted" style="font-size:12.5px; margin-top:10px;">No products shortlisted yet.</p>
+        {% endif %}
+        <div style="margin-top:12px;">
+          <a href="{{ url_for('pages.category_page', key=card.category.key) }}"><button class="btn-secondary btn-sm">Open category →</button></a>
         </div>
-      {% else %}
-        <p class="muted" style="font-size:12.5px; margin-top:10px;">No products shortlisted yet.</p>
-      {% endif %}
-      <div style="margin-top:12px;">
-        <a href="{{ url_for('pages.category_page', key=card.category.key) }}"><button class="btn-secondary btn-sm">Open category →</button></a>
       </div>
     </div>
     {% endfor %}
@@ -81,29 +112,20 @@
 <div class="section">
   <div class="section-head"><h2>🔥 Best Deals Today</h2><span class="count">{{ best_deals|length }} deals</span></div>
   {% if best_deals %}
-  <div class="table-wrap">
-    <table class="data-table" data-sortable>
-      <thead><tr>
-        <th></th>
-        <th data-sort-key="name">Product</th>
-        <th data-sort-key="category">Category</th>
-        <th data-sort-key="price" data-sort-type="number" class="num">Price</th>
-        <th data-sort-key="retailer">Retailer</th>
-        <th data-sort-key="deal" data-sort-type="number" class="num">Deal Score</th>
-      </tr></thead>
-      <tbody>
-        {% for p in best_deals %}
-        <tr onclick="window.location='{{ url_for('pages.product_page', product_id=p.id) }}'" style="cursor:pointer;">
-          <td>{% if p.image_url %}<img src="{{ p.image_url }}" class="thumb" loading="lazy" onerror="this.style.display='none'">{% else %}<div class="thumb thumb-placeholder">{{ p.category.icon }}</div>{% endif %}</td>
-          <td data-cell="name" data-value="{{ p.full_name }}">{{ p.full_name }}</td>
-          <td data-cell="category" data-value="{{ p.category.name }}">{{ p.category.name }}</td>
-          <td data-cell="price" data-value="{{ p.pricing.current_price or 0 }}" class="num">{{ '{:,.0f}'.format(p.pricing.current_price) if p.pricing.current_price else '—' }}</td>
-          <td data-cell="retailer" data-value="{{ p.pricing.best_retailer or '' }}">{{ p.pricing.best_retailer or '—' }}</td>
-          <td data-cell="deal" data-value="{{ p.deal_score.score or 0 }}" class="num">{{ m.deal_badge(p.deal_score) }}</td>
-        </tr>
-        {% endfor %}
-      </tbody>
-    </table>
+  <div class="hscroll">
+    {% for p in best_deals %}
+    <a href="{{ url_for('pages.product_page', product_id=p.id) }}" class="deal-tile">
+      <div class="photo">
+        {% if p.deal_score.score %}<span class="ribbon">{{ p.deal_score.score }} pts</span>{% endif %}
+        {% if p.image_url %}<img src="{{ p.image_url }}" loading="lazy" onerror="this.style.display='none'">{% else %}<span style="font-size:36px;">{{ p.category.icon }}</span>{% endif %}
+      </div>
+      <div class="body">
+        <div class="dname">{{ p.full_name }}</div>
+        <div class="dprice">{{ '{:,.0f} EGP'.format(p.pricing.current_price) if p.pricing.current_price else '—' }}</div>
+        <div class="dmeta">{{ p.pricing.best_retailer or '—' }}</div>
+      </div>
+    </a>
+    {% endfor %}
   </div>
   {% else %}
   <div class="empty-state">No meaningful deals right now — check back after the next price check, or add more products to track.</div>
