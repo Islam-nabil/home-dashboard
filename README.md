@@ -459,3 +459,4 @@ itself has no login screen.
 5. If you outgrow SQLite (unlikely for one household), the
    engines/repository split means swapping in Postgres only touches
    `db.py` + `schema.sql`.
+# test
