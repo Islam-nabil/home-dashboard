@@ -836,4 +836,7 @@ def seed():
 
 
 if __name__ == "__main__":
+    # Also runnable directly (python seed.py) — makes sure the schema exists
+    # first, same as scripts/run_seed.py does.
+    db.init_db()
     seed()
