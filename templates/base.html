@@ -8,7 +8,8 @@
 </head>
 <body>
 <div class="app-shell">
-  <aside class="sidebar">
+  <div class="sidebar-backdrop" id="sidebar-backdrop"></div>
+  <aside class="sidebar" id="sidebar">
     <div class="brand">
       <span class="logo">🏠</span>
       <div>
@@ -36,7 +37,8 @@
   </aside>
 
   <div class="main">
-    <div class="topbar" style="display:flex; justify-content:flex-end;">
+    <div class="topbar" style="display:flex; justify-content:flex-end; align-items:center;">
+      <button class="btn-ghost btn-sm hamburger-btn" id="hamburger-btn" title="Menu" style="margin-right:auto;">☰ Menu</button>
       <button class="btn-ghost btn-sm" id="whoami-btn" title="Who's using this right now? Just shows up on the Activity feed.">
         👤 <span id="whoami-label">{{ current_actor or 'Who are you?' }}</span>
       </button>

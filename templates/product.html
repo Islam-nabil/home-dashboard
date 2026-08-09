@@ -22,11 +22,11 @@
   </div>
 </div>
 
-<div class="card-grid" style="grid-template-columns: 2fr 1fr; margin-top:16px;">
+<div class="card-grid product-layout" style="margin-top:16px;">
   <div class="stack-16">
 
     <div class="card">
-      <div class="flex-between" style="align-items:flex-start;">
+      <div class="flex-between" style="align-items:flex-start; flex-wrap:wrap; gap:12px;">
         <div style="display:flex; gap:14px; align-items:flex-start;">
           {% if product.image_url %}
           <img src="{{ product.image_url }}" class="hero-img" onerror="this.outerHTML='<div class=&quot;hero-img hero-img-placeholder&quot;>{{ product.category.icon }}</div>'">
@@ -42,7 +42,7 @@
         {{ m.deal_badge(product.deal_score) }}
       </div>
       <hr class="divider">
-      <div class="budget-grid" style="grid-template-columns: repeat(4, 1fr);">
+      <div class="budget-grid">
         <div class="budget-stat"><div class="label">Previous Price</div><div class="value" style="font-size:15px;">{{ '{:,.0f}'.format(product.pricing.previous_price) if product.pricing.previous_price else '—' }}</div></div>
         <div class="budget-stat"><div class="label">Historical Low</div><div class="value" style="font-size:15px;">{{ '{:,.0f}'.format(product.pricing.historical_low) if product.pricing.historical_low else '—' }}</div></div>
         <div class="budget-stat"><div class="label">Historical High</div><div class="value" style="font-size:15px;">{{ '{:,.0f}'.format(product.pricing.historical_high) if product.pricing.historical_high else '—' }}</div></div>

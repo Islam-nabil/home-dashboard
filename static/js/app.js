@@ -169,6 +169,19 @@ function drawLineChart(canvas, points, opts) {
   });
 }
 
+// ---------------- Mobile nav (hamburger + slide-in sidebar) ----------------
+document.addEventListener('DOMContentLoaded', function () {
+  const sidebar = document.getElementById('sidebar');
+  const backdrop = document.getElementById('sidebar-backdrop');
+  const hamburger = document.getElementById('hamburger-btn');
+  if (!sidebar || !backdrop || !hamburger) return;
+  function openNav() { sidebar.classList.add('open'); backdrop.classList.add('open'); }
+  function closeNav() { sidebar.classList.remove('open'); backdrop.classList.remove('open'); }
+  hamburger.addEventListener('click', openNav);
+  backdrop.addEventListener('click', closeNav);
+  sidebar.querySelectorAll('a').forEach(a => a.addEventListener('click', closeNav));
+});
+
 // ---------------- "Who's this" identity switcher ----------------
 // Just a display name for the Activity feed (not a login) — see
 // templates/activity_page.html and README "Activity" notes.
